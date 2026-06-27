@@ -14,7 +14,11 @@ bench-go:
 	@echo "═══════════════════════════════════════════════════════════════"
 	@echo "  Go Goroutines Ping-Pong"
 	@echo "═══════════════════════════════════════════════════════════════"
-	$(GO) run bench.go
+	@if command -v $(GO) >/dev/null 2>&1; then \
+		$(GO) run bench.go; \
+	else \
+		echo "  [SKIP] Go not installed"; \
+	fi
 
 bench-mvl:
 	@echo "═══════════════════════════════════════════════════════════════"
