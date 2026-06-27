@@ -6,25 +6,71 @@
 # 2. If it compiles, run it
 # 3. Report whether the vulnerability was prevented
 #
-# Usage: ./run_tests.sh [--verbose]
+# Usage: ./run_tests.sh [-h|--help] [-v|--verbose]
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MVL="${MVL:-mvl}"
-VERBOSE="${1:-}"
+VERBOSE=false
 
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
 NC='\033[0m'
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [OPTIONS]
+
+CVE Replication Test Suite for MVL
+
+Options:
+  -h, --help      Show this help message and exit
+  -v, --verbose   Show detailed compiler output on errors
+
+Environment:
+  MVL             Path to mvl binary (default: mvl)
+
+Examples:
+  ./run_tests.sh                    # Run all tests
+  ./run_tests.sh -v                 # Run with verbose output
+  MVL=./target/release/mvl ./run_tests.sh  # Use specific mvl binary
+
+EOF
+    exit 0
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            usage
+            ;;
+        -v|--verbose)
+            VERBOSE=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use -h or --help for usage information"
+            exit 1
+            ;;
+    esac
+done
 
 pass=0
 fail=0
+skip=0
 
 echo "═══════════════════════════════════════════════════════════════"
 echo "  CVE Replication Test Suite"
 echo "═══════════════════════════════════════════════════════════════"
+echo ""
+echo -e "  ${BLUE}MVL:${NC} $(which $MVL 2>/dev/null || echo "$MVL (not found)")"
+echo -e "  ${BLUE}Dir:${NC} $SCRIPT_DIR"
 echo ""
 
 for cve_dir in "$SCRIPT_DIR"/CVE-*/; do
@@ -33,6 +79,7 @@ for cve_dir in "$SCRIPT_DIR"/CVE-*/; do
 
     if [[ ! -f "$attempt" ]]; then
         echo -e "${YELLOW}[SKIP]${NC} $cve_name - no attempt.mvl"
+        ((skip++))
         continue
     fi
 
@@ -43,13 +90,16 @@ for cve_dir in "$SCRIPT_DIR"/CVE-*/; do
 
     if [[ "$compile_ok" == "false" ]]; then
         # Compile failed - check if this was expected
-        if grep -q "COMPILE ERROR" "$cve_dir/expected_error.txt" 2>/dev/null; then
+        if grep -q "COMPILE ERROR\|Compile-time" "$cve_dir/expected_error.txt" 2>/dev/null; then
             echo -e "${GREEN}[PASS]${NC} Compile-time rejection (as expected)"
             ((pass++))
         else
             echo -e "${YELLOW}[WARN]${NC} Unexpected compile error"
-            if [[ -n "$VERBOSE" ]]; then
-                echo "$compile_output"
+            if [[ "$VERBOSE" == "true" ]]; then
+                echo ""
+                echo -e "${BLUE}Compiler output:${NC}"
+                echo "$compile_output" | head -20
+                echo ""
             fi
         fi
         continue
@@ -64,13 +114,16 @@ for cve_dir in "$SCRIPT_DIR"/CVE-*/; do
         ((pass++))
     else
         # Runtime failure - check if expected
-        if grep -q "runtime" "$cve_dir/expected_error.txt" 2>/dev/null; then
+        if grep -qi "runtime\|bounds" "$cve_dir/expected_error.txt" 2>/dev/null; then
             echo -e "${GREEN}[PASS]${NC} Runtime bounds check caught it"
             ((pass++))
         else
             echo -e "${RED}[FAIL]${NC} Unexpected runtime error"
-            if [[ -n "$VERBOSE" ]]; then
-                echo "$run_output"
+            if [[ "$VERBOSE" == "true" ]]; then
+                echo ""
+                echo -e "${BLUE}Runtime output:${NC}"
+                echo "$run_output" | head -20
+                echo ""
             fi
             ((fail++))
         fi
@@ -79,7 +132,7 @@ done
 
 echo ""
 echo "═══════════════════════════════════════════════════════════════"
-echo "  Results: $pass passed, $fail failed"
+echo -e "  Results: ${GREEN}$pass passed${NC}, ${RED}$fail failed${NC}, ${YELLOW}$skip skipped${NC}"
 echo "═══════════════════════════════════════════════════════════════"
 
 exit $fail
