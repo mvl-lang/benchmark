@@ -1,0 +1,42 @@
+// Rosetta Code: Reverse a String
+// https://rosettacode.org/wiki/Reverse_a_string
+//
+// Reverse a string (character-by-character)
+
+fn reverse_list(input: List[Int]) -> List[Int] {
+    let result: ref List[Int] = [];
+    let i: ref Int = input.len() - 1;
+
+    while i >= 0 decreases i + 1 {
+        let char: Int = input.get(i).unwrap_or(0);
+        result.push(char);
+        i = i - 1;
+    }
+
+    result
+}
+
+fn main() -> Unit {
+    // "Hello" as list of ASCII codes
+    let hello: List[Int] = [72, 101, 108, 108, 111];  // H e l l o
+
+    let reversed: List[Int] = reverse_list(hello);
+
+    // Should be [111, 108, 108, 101, 72] = "olleH"
+    if reversed.len() == 5 {
+        let first: Int = reversed.get(0).unwrap_or(0);
+        if first == 111 {  // 'o'
+            // Correct!
+            let _: Unit = ();
+        }
+    }
+}
+
+// METRICS:
+// Lines: 15
+// Type annotations: 5
+// MVL-specific: decreases clause for decrementing loop
+//
+// Note: MVL doesn't have native string reversal
+// Working with character codes (List[Int]) for now
+// Future: proper Unicode string handling

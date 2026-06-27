@@ -1,0 +1,140 @@
+// OWASP A08: Software and Data Integrity Failures
+// MVL version - IFC labels track data provenance
+
+// Trust levels for data
+type DataSource = enum {
+    Untrusted,   // External input, user data
+    Verified,    // Signature checked
+    Internal,    // Generated internally
+}
+
+// Config with required fields enforced by type
+type Config = struct {
+    version: Int,
+    max_connections: Int,
+    timeout_seconds: Int,
+}
+
+// Parse result - explicit about what can go wrong
+type ParseResult = enum {
+    Ok { config: Config },
+    MissingField { name: String },
+    InvalidValue { field: String, reason: String },
+    InvalidFormat,
+}
+
+// Type-safe config parsing
+fn parse_config(json_str: String) -> ParseResult {
+    // In real MVL, would use typed JSON parser
+    // that enforces schema at compile time
+
+    // Placeholder - real parser would validate all fields
+    ParseResult::Ok {
+        config: Config {
+            version: 1,
+            max_connections: 100,
+            timeout_seconds: 30,
+        },
+    }
+}
+
+// Signed data wrapper - signature is REQUIRED
+type SignedData = struct {
+    payload: String,
+    signature: String,
+    signer_id: String,
+}
+
+type VerifyResult = enum {
+    Valid { source: DataSource },
+    InvalidSignature,
+    UnknownSigner,
+    Expired,
+}
+
+fn verify_signature(data: SignedData) -> VerifyResult {
+    // Would use Crypto effect to verify
+    // Placeholder
+    VerifyResult::Valid { source: DataSource::Verified }
+}
+
+// Update with mandatory signature verification
+type Update = struct {
+    version: Int,
+    data: String,
+}
+
+fn apply_update(signed: SignedData) -> Option[Update] {
+    // Verification is MANDATORY - part of the type
+    match verify_signature(signed) {
+        VerifyResult::Valid { source: _ } => {
+            // Only apply verified updates
+            Some(Update {
+                version: 1,
+                data: signed.payload,
+            })
+        },
+        _ => {
+            // Reject unsigned/invalid updates
+            None
+        },
+    }
+}
+
+fn main() -> Unit {
+    // Parse config - result is explicit
+    let config_result: ParseResult = parse_config("{...}");
+
+    match config_result {
+        ParseResult::Ok { config: _ } => {
+            // Use validated config
+            let _: Unit = ();
+        },
+        ParseResult::MissingField { name: _ } => {
+            // Handle missing field
+            let _: Unit = ();
+        },
+        _ => {
+            // Handle other errors
+            let _: Unit = ();
+        },
+    }
+
+    // Apply update - signature required
+    let update: SignedData = SignedData {
+        payload: "update data",
+        signature: "valid-sig",
+        signer_id: "release-key",
+    };
+
+    let result: Option[Update] = apply_update(update);
+
+    match result {
+        Some(_) => {
+            // Update applied
+            let _: Unit = ();
+        },
+        None => {
+            // Update rejected
+            let _: Unit = ();
+        },
+    }
+}
+
+// WHY MVL PREVENTS INTEGRITY FAILURES:
+//
+// 1. NO ARBITRARY DESERIALIZATION
+//    MVL doesn't have pickle-style serialization
+//    All deserialization is typed and validated
+//
+// 2. SCHEMA ENFORCEMENT
+//    Config type defines required fields
+//    Parser must return ParseResult, not raw dict
+//
+// 3. SIGNATURE WRAPPER
+//    SignedData type requires signature field
+//    Can't forget to include signature
+//
+// 4. IFC LABELS
+//    Untrusted vs Verified vs Internal
+//    System functions can require Verified data

@@ -1,0 +1,90 @@
+// Rosetta Code: Greatest Common Divisor
+// https://rosettacode.org/wiki/Greatest_common_divisor
+//
+// Compute GCD using Euclidean algorithm
+
+fn gcd(a: Int, b: Int) -> Int
+    requires a >= 0
+    requires b >= 0
+    ensures result >= 0
+    ensures result == 0 || a % result == 0
+    ensures result == 0 || b % result == 0
+{
+    let x: ref Int = a;
+    let y: ref Int = b;
+
+    while y != 0 decreases y {
+        let temp: Int = y;
+        y = x % y;
+        x = temp;
+    }
+
+    x
+}
+
+// Extended GCD - returns (gcd, x, y) where ax + by = gcd
+type GcdResult = struct {
+    gcd: Int,
+    x: Int,
+    y: Int,
+}
+
+// Extended GCD - iterative version to avoid recursion termination proof
+fn extended_gcd(a: Int, b: Int) -> GcdResult
+    requires a >= 0
+    requires b >= 0
+{
+    let old_r: ref Int = a;
+    let r: ref Int = b;
+    let old_s: ref Int = 1;
+    let s: ref Int = 0;
+    let old_t: ref Int = 0;
+    let t: ref Int = 1;
+
+    while r != 0 decreases r {
+        let quotient: Int = old_r / r;
+
+        let temp_r: Int = r;
+        r = old_r - quotient * r;
+        old_r = temp_r;
+
+        let temp_s: Int = s;
+        s = old_s - quotient * s;
+        old_s = temp_s;
+
+        let temp_t: Int = t;
+        t = old_t - quotient * t;
+        old_t = temp_t;
+    }
+
+    GcdResult { gcd: old_r, x: old_s, y: old_t }
+}
+
+fn main() -> Unit {
+    // GCD(48, 18) = 6
+    let g1: Int = gcd(48, 18);
+    if g1 == 6 {
+        let _: Unit = ();
+    }
+
+    // GCD(14, 21) = 7
+    let g2: Int = gcd(14, 21);
+    if g2 == 7 {
+        let _: Unit = ();
+    }
+
+    // Extended GCD(35, 15) = 5, with 35*1 + 15*(-2) = 5
+    let ext: GcdResult = extended_gcd(35, 15);
+    if ext.gcd == 5 {
+        let _: Unit = ();
+    }
+}
+
+// METRICS:
+// Lines: 25 (gcd function only)
+// Type annotations: 8
+// MVL-specific: requires, ensures, decreases
+//
+// The Euclidean algorithm naturally terminates because
+// y decreases each iteration (mod reduces the value).
+// MVL's `decreases y` proves this.

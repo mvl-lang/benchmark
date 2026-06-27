@@ -1,0 +1,142 @@
+// OWASP A07: Identification and Authentication Failures
+// MVL version - Session types and mandatory expiry
+
+type SessionId = struct {
+    value: String,
+}
+
+type Timestamp = struct {
+    epoch_seconds: Int,
+}
+
+// Session with MANDATORY expiry
+type Session = struct {
+    id: SessionId,
+    user_id: String,
+    created_at: Timestamp,
+    expires_at: Timestamp,  // REQUIRED - can't create session without it
+}
+
+// Login attempt tracking for rate limiting
+type LoginState = struct {
+    attempts: ref Int,
+    last_attempt: ref Timestamp,
+    locked_until: ref Option[Timestamp],
+}
+
+type LoginResult = enum {
+    Success { session: Session },
+    InvalidCredentials,
+    RateLimited,
+    AccountLocked,
+    MfaRequired { challenge_id: String },
+}
+
+// Secure session creation - expiry required
+fn create_session(user_id: String, now: Timestamp, ttl_seconds: Int) -> Session {
+    Session {
+        id: SessionId { value: "secure-random-id" },  // Would use Crypto effect
+        user_id: user_id,
+        created_at: now,
+        expires_at: Timestamp { epoch_seconds: now.epoch_seconds + ttl_seconds },
+    }
+}
+
+// Validate session with expiry check
+fn validate_session(session: Session, now: Timestamp) -> Bool {
+    // Expiry check is mandatory - can't forget it
+    now.epoch_seconds < session.expires_at.epoch_seconds
+}
+
+// Login with rate limiting and MFA
+fn login(
+    username: String,
+    password: String,
+    state: ref LoginState,
+    now: Timestamp,
+    mfa_enabled: Bool
+) -> LoginResult {
+    // Check if account is locked
+    match state.locked_until {
+        Some(until) => {
+            if now.epoch_seconds < until.epoch_seconds {
+                return LoginResult::AccountLocked;
+            }
+        },
+        None => {
+            let _: Unit = ();
+        },
+    }
+
+    // Rate limiting
+    if state.attempts >= 5 {
+        // Lock account for 15 minutes
+        state.locked_until = Some(Timestamp {
+            epoch_seconds: now.epoch_seconds + 900,
+        });
+        return LoginResult::RateLimited;
+    }
+
+    // Validate credentials (placeholder)
+    let valid: Bool = password == "correct";
+
+    if !valid {
+        state.attempts = state.attempts + 1;
+        state.last_attempt = now;
+        return LoginResult::InvalidCredentials;
+    }
+
+    // Reset attempts on success
+    state.attempts = 0;
+
+    // Check MFA
+    if mfa_enabled {
+        return LoginResult::MfaRequired {
+            challenge_id: "mfa-challenge-123",
+        };
+    }
+
+    // Create session with 1 hour expiry
+    let session: Session = create_session(username, now, 3600);
+    LoginResult::Success { session: session }
+}
+
+fn main() -> Unit {
+    let now: Timestamp = Timestamp { epoch_seconds: 1000000 };
+    let state: ref LoginState = LoginState {
+        attempts: 0,
+        last_attempt: now,
+        locked_until: None,
+    };
+
+    // Attempt login with MFA
+    let result: LoginResult = login("admin", "correct", state, now, true);
+
+    match result {
+        LoginResult::MfaRequired { challenge_id: _ } => {
+            // MFA required - correct behavior
+            let _: Unit = ();
+        },
+        _ => {
+            let _: Unit = ();
+        },
+    }
+}
+
+// WHY MVL PREVENTS AUTH FAILURES:
+//
+// 1. MANDATORY EXPIRY
+//    Session type requires expires_at field
+//    Can't create session without expiry
+//
+// 2. RATE LIMITING IN TYPE
+//    LoginState tracks attempts
+//    Function signature requires it
+//
+// 3. EXPLICIT MFA
+//    LoginResult::MfaRequired is an explicit state
+//    Can't accidentally skip MFA check
+//
+// 4. SESSION TYPES
+//    SessionId is a distinct type (not just String)
+//    Can't confuse session ID with other strings

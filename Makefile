@@ -69,23 +69,45 @@ test-cwe:
 	@echo ""
 	@echo "  Cases: $$(ls -d cwe_comparative/CWE-*/ cwe_comparative/OWASP-*/ 2>/dev/null | wc -l | tr -d ' ')"
 
-# Rosetta Translation (placeholder)
+# Rosetta Translation
 test-rosetta:
 	@echo "═══════════════════════════════════════════════════════════════"
 	@echo "  Rosetta Translation Tests"
 	@echo "═══════════════════════════════════════════════════════════════"
-	@echo "  Status: Not yet implemented"
-	@echo "  TODO: Port standard tasks from Rosetta Code"
-	@test -d rosetta && ls rosetta/ || echo "  Directory empty"
+	@echo ""
+	@for f in rosetta/*.mvl; do \
+		if [ -f "$$f" ]; then \
+			name=$$(basename "$$f" .mvl); \
+			result=$$(mvl check "$$f" 2>&1); \
+			if echo "$$result" | grep -q "OK"; then \
+				echo "  ✅ $$name"; \
+			else \
+				echo "  ❌ $$name"; \
+			fi; \
+		fi; \
+	done
+	@echo ""
+	@echo "  Tasks: $$(ls rosetta/*.mvl 2>/dev/null | wc -l | tr -d ' ')"
 
-# Adversarial LLM (placeholder)
+# Adversarial LLM
 test-llm:
 	@echo "═══════════════════════════════════════════════════════════════"
 	@echo "  Adversarial LLM Tests"
 	@echo "═══════════════════════════════════════════════════════════════"
-	@echo "  Status: Not yet implemented"
-	@echo "  TODO: Generate and test LLM-written MVL programs"
-	@test -d adversarial_llm && ls adversarial_llm/ || echo "  Directory empty"
+	@echo ""
+	@for f in adversarial_llm/*.mvl; do \
+		if [ -f "$$f" ]; then \
+			name=$$(basename "$$f" .mvl); \
+			result=$$(mvl check "$$f" 2>&1); \
+			if echo "$$result" | grep -q "OK"; then \
+				echo "  ✅ $$name"; \
+			else \
+				echo "  ❌ $$name"; \
+			fi; \
+		fi; \
+	done
+	@echo ""
+	@echo "  Programs: $$(ls adversarial_llm/*.mvl 2>/dev/null | wc -l | tr -d ' ')"
 
 # Performance benchmarks
 test-perf:

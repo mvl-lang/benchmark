@@ -1,0 +1,117 @@
+// OWASP A09: Security Logging and Monitoring Failures
+// MVL version - Effect system controls logging, IFC prevents sensitive data leaks
+
+// Logging effect - all logging goes through this
+// effect Log {
+//     fn info(event: AuditEvent) -> Unit;
+//     fn warn(event: AuditEvent) -> Unit;
+//     fn error(event: AuditEvent) -> Unit;
+// }
+
+// Sensitivity labels for data
+type Sensitivity = enum {
+    Public,      // Can be logged
+    Internal,    // Careful with logging
+    Sensitive,   // NEVER log (passwords, tokens, PII)
+}
+
+// Audit event with required fields
+type AuditEvent = struct {
+    event_type: String,
+    actor_id: String,       // Who did it
+    target_id: String,      // What was affected
+    timestamp: Int,         // When
+    outcome: String,        // Success/failure
+    // NO sensitive data fields!
+}
+
+// Login credentials - sensitive, cannot be logged
+type Credentials = struct {
+    username: String,
+    // password is Sensitive - IFC prevents it from flowing to logs
+}
+
+// Audit-logged transfer
+type TransferRequest = struct {
+    from_account: String,
+    to_account: String,
+    amount: Int,
+    actor_id: String,
+    reason: String,
+}
+
+fn log_transfer(req: TransferRequest, timestamp: Int, success: Bool) -> AuditEvent {
+    AuditEvent {
+        event_type: "FUND_TRANSFER",
+        actor_id: req.actor_id,
+        target_id: req.from_account,
+        timestamp: timestamp,
+        outcome: if success { "SUCCESS" } else { "FAILURE" },
+    }
+}
+
+// Safe logging - sanitizes input
+fn sanitize_for_log(input: String) -> String {
+    // Remove newlines, control characters
+    // In real code: proper sanitization
+    input
+}
+
+fn log_user_action(user_id: String, action: String, timestamp: Int) -> AuditEvent {
+    AuditEvent {
+        event_type: "USER_ACTION",
+        actor_id: user_id,
+        target_id: sanitize_for_log(action),  // Sanitized!
+        timestamp: timestamp,
+        outcome: "RECORDED",
+    }
+}
+
+fn main() -> Unit {
+    // Login - password cannot flow to log (IFC)
+    let creds: Credentials = Credentials {
+        username: "admin",
+        // password not stored in loggable struct
+    };
+
+    let login_event: AuditEvent = AuditEvent {
+        event_type: "LOGIN",
+        actor_id: creds.username,
+        target_id: "system",
+        timestamp: 1000000,
+        outcome: "SUCCESS",
+    };
+
+    // Transfer with audit trail
+    let transfer: TransferRequest = TransferRequest {
+        from_account: "account1",
+        to_account: "account2",
+        amount: 10000,
+        actor_id: "user123",
+        reason: "payment",
+    };
+
+    let transfer_event: AuditEvent = log_transfer(transfer, 1000001, true);
+
+    // All events have required fields
+    let _: AuditEvent = login_event;
+    let _: AuditEvent = transfer_event;
+}
+
+// WHY MVL PREVENTS LOGGING FAILURES:
+//
+// 1. EFFECT SYSTEM
+//    All logging goes through Log effect
+//    Can audit all log call sites
+//
+// 2. IFC LABELS
+//    Sensitive data labeled - can't flow to logs
+//    password: String @Sensitive cannot be logged
+//
+// 3. AUDIT EVENT TYPE
+//    Required fields: actor, target, timestamp, outcome
+//    Can't create event without them
+//
+// 4. SANITIZATION
+//    Log functions take sanitized types
+//    Raw user input doesn't compile

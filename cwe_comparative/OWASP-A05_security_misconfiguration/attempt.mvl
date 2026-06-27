@@ -1,0 +1,141 @@
+// OWASP A05: Security Misconfiguration
+// MVL version - Compile-time configuration validation
+
+// Environment type enforces different configs
+type Environment = enum {
+    Development,
+    Staging,
+    Production,
+}
+
+// Configuration with environment-specific constraints
+type Config = struct {
+    env: Environment,
+    debug: Bool,
+    admin_password: String,
+    cors_origins: List[String],
+}
+
+// Smart constructor - enforces valid configs
+fn config_new(env: Environment, admin_password: String, cors_origins: List[String]) -> Option[Config] {
+    match env {
+        Environment::Production => {
+            // Production constraints:
+            // 1. Debug must be false
+            // 2. Admin password must not be default
+            // 3. CORS must not be wildcard
+
+            if admin_password == "admin123" {
+                return None;  // Reject default password
+            }
+
+            // Check for wildcard CORS
+            let has_wildcard: ref Bool = false;
+            let i: ref Int = 0;
+            while i < cors_origins.len() decreases cors_origins.len() - i {
+                let origin: String = cors_origins.get(i).unwrap_or("");
+                if origin == "*" {
+                    has_wildcard = true;
+                }
+                i = i + 1;
+            }
+
+            if has_wildcard {
+                return None;  // Reject wildcard CORS in production
+            }
+
+            Some(Config {
+                env: env,
+                debug: false,  // Always false in production
+                admin_password: admin_password,
+                cors_origins: cors_origins,
+            })
+        },
+        _ => {
+            // Dev/staging - more permissive
+            Some(Config {
+                env: env,
+                debug: true,
+                admin_password: admin_password,
+                cors_origins: cors_origins,
+            })
+        },
+    }
+}
+
+// Error handling - environment-aware
+type ErrorResponse = struct {
+    message: String,
+    // No stack trace field - can't leak it
+}
+
+fn handle_error(env: Environment, error_msg: String) -> ErrorResponse {
+    match env {
+        Environment::Production => {
+            // Generic message only
+            ErrorResponse {
+                message: "An error occurred",
+            }
+        },
+        _ => {
+            // Development can show details
+            ErrorResponse {
+                message: error_msg,
+            }
+        },
+    }
+}
+
+fn main() -> Unit {
+    // Try to create production config with bad settings
+    let bad_config: Option[Config] = config_new(
+        Environment::Production,
+        "admin123",  // Default password
+        ["*"],       // Wildcard CORS
+    );
+
+    match bad_config {
+        None => {
+            // Correctly rejected!
+            let _: Unit = ();
+        },
+        Some(_) => {
+            panic("Should have rejected insecure config");
+        },
+    }
+
+    // Good production config
+    let good_config: Option[Config] = config_new(
+        Environment::Production,
+        "strong-password-from-vault",
+        ["https://app.example.com"],
+    );
+
+    match good_config {
+        Some(config) => {
+            // Use config
+            let _: Config = config;
+        },
+        None => {
+            panic("Valid config rejected");
+        },
+    }
+}
+
+// WHY MVL PREVENTS MISCONFIGURATION:
+//
+// 1. SMART CONSTRUCTORS
+//    config_new() validates constraints
+//    Invalid configs return None
+//
+// 2. ENVIRONMENT TYPES
+//    Production vs Development is explicit
+//    Different rules apply to each
+//
+// 3. NO STACK TRACE FIELD
+//    ErrorResponse type has no traceback field
+//    Can't accidentally leak it
+//
+// 4. COMPILE-TIME CHECKS (future)
+//    Refinement types: password.len() >= 12
+//    Invalid values rejected at compile time

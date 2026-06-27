@@ -1,0 +1,126 @@
+// OWASP A04: Insecure Design
+// MVL version - Type-driven design with rate limiting
+
+type RateLimitConfig = struct {
+    max_requests: Int,
+    window_seconds: Int,
+}
+
+type RateLimiter = struct {
+    config: RateLimitConfig,
+    requests: ref Int,
+}
+
+fn limiter_new(config: RateLimitConfig) -> RateLimiter {
+    RateLimiter {
+        config: config,
+        requests: 0,
+    }
+}
+
+fn limiter_check(limiter: ref RateLimiter) -> Bool {
+    if limiter.requests >= limiter.config.max_requests {
+        false  // Rate exceeded
+    } else {
+        limiter.requests = limiter.requests + 1;
+        true
+    }
+}
+
+// Password reset with required rate limiting
+type ResetRequest = struct {
+    email: String,
+    limiter: ref RateLimiter,  // Rate limiter is REQUIRED
+}
+
+type ResetResult = enum {
+    Sent,
+    RateLimited,
+    InvalidEmail,
+}
+
+fn request_password_reset(req: ResetRequest) -> ResetResult {
+    // Rate limiting is mandatory - part of the type
+    if !limiter_check(req.limiter) {
+        return ResetResult::RateLimited;
+    }
+
+    // Validate email format
+    if req.email.len() < 5 {
+        return ResetResult::InvalidEmail;
+    }
+
+    // Process reset
+    ResetResult::Sent
+}
+
+// Purchase with quantity limits baked into the type
+type PurchaseRequest = struct {
+    user_id: String,
+    item_id: String,
+    quantity: Int,  // Would have refinement: quantity > 0 && quantity <= 10
+}
+
+type PurchaseResult = enum {
+    Success,
+    QuantityExceeded,
+    OutOfStock,
+}
+
+fn process_purchase(req: PurchaseRequest) -> PurchaseResult {
+    // Quantity limit enforced by type (refinement)
+    // In real MVL: quantity: Int where 0 < quantity <= 10
+
+    if req.quantity > 10 {
+        return PurchaseResult::QuantityExceeded;
+    }
+
+    PurchaseResult::Success
+}
+
+fn main() -> Unit {
+    // Rate limiter config: 3 requests per window
+    let config: RateLimitConfig = RateLimitConfig {
+        max_requests: 3,
+        window_seconds: 60,
+    };
+    let limiter: ref RateLimiter = limiter_new(config);
+
+    // Attempt multiple resets
+    let i: ref Int = 0;
+    while i < 5 decreases 5 - i {
+        let req: ResetRequest = ResetRequest {
+            email: "user@example.com",
+            limiter: limiter,
+        };
+        let result: ResetResult = request_password_reset(req);
+        match result {
+            ResetResult::RateLimited => {
+                // Blocked after 3 attempts
+                let _: Unit = ();
+            },
+            _ => {
+                let _: Unit = ();
+            },
+        }
+        i = i + 1;
+    }
+}
+
+// WHY MVL HELPS WITH SECURE DESIGN:
+//
+// 1. TYPE-DRIVEN DESIGN
+//    Rate limiter is part of ResetRequest type
+//    Can't call reset without providing limiter
+//
+// 2. REFINEMENT TYPES (future)
+//    quantity: Int where 0 < quantity <= 10
+//    Invalid quantities rejected at compile time
+//
+// 3. EXPLICIT STATES
+//    ResetResult enum makes all outcomes explicit
+//    Can't ignore rate limiting result
+//
+// 4. EFFECT SYSTEM
+//    Side effects (email sending) are visible in types
+//    Abuse cases become type mismatches

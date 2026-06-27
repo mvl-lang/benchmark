@@ -1,0 +1,104 @@
+// OWASP A02: Cryptographic Failures
+// MVL version - Effect system controls crypto operations
+
+// Crypto operations require explicit effect declaration
+// effect Crypto {
+//     fn hash(data: Bytes, algo: HashAlgo) -> Bytes;
+//     fn encrypt(data: Bytes, key: Key) -> Bytes;
+//     fn decrypt(data: Bytes, key: Key) -> Bytes;
+// }
+
+type HashAlgo = enum {
+    // Weak algorithms not included!
+    // No MD5, no SHA1
+    Sha256,
+    Sha384,
+    Sha512,
+    Argon2id,  // For passwords
+}
+
+type KeySource = enum {
+    Environment,  // From env var (ok)
+    KeyVault,     // From secret manager (best)
+    // No Hardcoded option!
+}
+
+type Key = struct {
+    source: KeySource,
+    id: String,
+}
+
+// Password hashing - Argon2id only, salt required
+type PasswordHash = struct {
+    hash: String,
+    salt: String,
+    algo: String,  // Always "argon2id"
+}
+
+fn hash_password(password: String, salt: String) -> PasswordHash {
+    // In real MVL with Crypto effect:
+    // let hash = crypto.hash(password + salt, HashAlgo::Argon2id);
+
+    PasswordHash {
+        hash: password,  // Placeholder
+        salt: salt,
+        algo: "argon2id",
+    }
+}
+
+// Key loading - must come from secure source
+fn load_key(source: KeySource, key_id: String) -> Option[Key] {
+    match source {
+        KeySource::Environment => {
+            // Load from env var
+            Some(Key { source: source, id: key_id })
+        },
+        KeySource::KeyVault => {
+            // Load from secret manager
+            Some(Key { source: source, id: key_id })
+        },
+    }
+}
+
+fn main() -> Unit {
+    // Generate random salt (would use Crypto effect)
+    let salt: String = "random-salt-here";
+
+    // Hash password with proper algorithm
+    let hashed: PasswordHash = hash_password("hunter2", salt);
+
+    // Load key from secure source
+    let key: Option[Key] = load_key(KeySource::Environment, "ENCRYPTION_KEY");
+
+    match key {
+        None => {
+            // Key not found - fail safely
+            panic("Encryption key not configured");
+        },
+        Some(_k) => {
+            // Use key for encryption
+            let _: Unit = ();
+        },
+    }
+}
+
+// WHY MVL PREVENTS CRYPTO FAILURES:
+//
+// 1. EFFECT SYSTEM
+//    Crypto operations require ! Crypto effect
+//    Makes all crypto usage visible and auditable
+//
+// 2. NO WEAK ALGORITHMS
+//    HashAlgo enum doesn't include MD5, SHA1
+//    Can't accidentally use weak crypto
+//
+// 3. NO HARDCODED KEYS
+//    KeySource enum requires Environment or KeyVault
+//    No way to inline a key string
+//
+// 4. MANDATORY SALT
+//    hash_password() requires salt parameter
+//    Can't forget to salt
+//
+// 5. IFC LABELS (future)
+//    Sensitive data labeled, can't flow to logs/responses

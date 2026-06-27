@@ -1,0 +1,93 @@
+// OWASP A06: Vulnerable and Outdated Components
+// MVL version - This is primarily a tooling/ecosystem concern, not language
+//
+// MVL helps at the margins through:
+// 1. Effect system limiting what dependencies can do
+// 2. Minimal stdlib reducing attack surface
+// 3. Strong typing preventing some exploit classes
+
+// Demonstrate: effect system limits dependency capabilities
+
+// A dependency that needs network access must declare it
+// effect Network {
+//     fn fetch(url: String) -> String;
+// }
+
+// A "safe" utility function - no effects, can't do I/O
+fn safe_string_utils_upper(s: String) -> String {
+    // Pure function - no network, no filesystem
+    // Even if this came from a compromised package,
+    // it cannot exfiltrate data without Network effect
+    s  // Placeholder - would convert to uppercase
+}
+
+// A function that needs network must declare it
+// fn vulnerable_analytics(data: String) -> Unit ! Network {
+//     // This function CAN phone home
+//     // But the effect is visible to callers
+// }
+
+// Dependency manifest would include:
+// - Package name and version
+// - Hash for integrity
+// - Required effects (what it can do)
+
+type Dependency = struct {
+    name: String,
+    version: String,
+    hash: String,
+    // effects: List[Effect] - what effects this package uses
+}
+
+fn verify_dependency(dep: Dependency, expected_hash: String) -> Bool {
+    dep.hash == expected_hash
+}
+
+fn main() -> Unit {
+    // Simulated dependency verification
+    let my_dep: Dependency = Dependency {
+        name: "string-utils",
+        version: "1.2.3",
+        hash: "sha256:abc123...",
+    };
+
+    let expected: String = "sha256:abc123...";
+
+    if verify_dependency(my_dep, expected) {
+        // Hash matches - dependency is as expected
+        let result: String = safe_string_utils_upper("hello");
+        let _: String = result;
+    } else {
+        // Hash mismatch - potential tampering
+        panic("Dependency verification failed!");
+    }
+}
+
+// HOW MVL HELPS (AT THE MARGINS):
+//
+// 1. EFFECT VISIBILITY
+//    Dependencies that need Network/Filesystem/etc must declare it
+//    Unexpected effects are visible in signatures
+//    "Why does string-utils need Network?" becomes obvious
+//
+// 2. MINIMAL STDLIB
+//    Less code = smaller attack surface
+//    Core functionality audited, not third-party
+//
+// 3. TYPE SAFETY
+//    Strong typing prevents some exploit classes
+//    No arbitrary deserialization
+//    No implicit type coercions
+//
+// 4. TOOLING (mvl audit)
+//    Like cargo-audit / npm audit
+//    Checks dependencies against CVE database
+//
+// WHAT MVL CAN'T SOLVE:
+//
+// - Supply chain attacks at build time
+// - Compromised package registries
+// - Social engineering of maintainers
+// - Logic bugs in dependencies
+//
+// These require ecosystem solutions (SBOMs, signing, etc.)

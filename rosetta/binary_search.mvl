@@ -1,0 +1,64 @@
+// Rosetta Code: Binary Search
+// https://rosettacode.org/wiki/Binary_search
+//
+// Search for a value in a sorted list in O(log n) time
+
+fn binary_search(arr: List[Int], target: Int) -> Option[Int]
+    // requires arr is sorted (would be refinement type)
+{
+    let low: ref Int = 0;
+    let high: ref Int = arr.len() - 1;
+
+    while low <= high decreases high - low + 1 {
+        let mid: Int = low + (high - low) / 2;
+        let mid_val: Int = arr.get(mid).unwrap_or(0);
+
+        if mid_val == target {
+            return Some(mid);
+        } else if mid_val < target {
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+    }
+
+    None
+}
+
+fn main() -> Unit {
+    let sorted: List[Int] = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19];
+
+    // Search for 7
+    let result: Option[Int] = binary_search(sorted, 7);
+    match result {
+        Some(idx) => {
+            if idx == 3 {
+                // Correct! sorted[3] == 7
+                let _: Unit = ();
+            }
+        },
+        None => {
+            panic("Should have found 7");
+        },
+    }
+
+    // Search for 8 (not present)
+    let result2: Option[Int] = binary_search(sorted, 8);
+    match result2 {
+        None => {
+            // Correct! 8 is not in list
+            let _: Unit = ();
+        },
+        Some(_) => {
+            panic("Should not have found 8");
+        },
+    }
+}
+
+// METRICS:
+// Lines: 22
+// Type annotations: 7
+// MVL-specific: decreases clause, Option return type
+//
+// Future enhancement: refinement type for sorted arrays
+// fn binary_search(arr: List[Int] where sorted(arr), target: Int)
