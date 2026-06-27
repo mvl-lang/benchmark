@@ -1,0 +1,6 @@
+# Build artifacts
+*_demo
+*.dSYM/
+*.o
+__pycache__/
+*.class
