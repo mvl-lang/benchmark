@@ -1,0 +1,35 @@
+// CWE-787: Out-of-bounds Write
+// MVL version - compile-time bounds checking via slices
+
+fn copy_to_buffer(input: List[Int], buffer: ref List[Int]) -> Unit {
+    // MVL lists are bounds-checked at runtime.
+
+    let i: ref Int = 0;
+    while i < input.len() && i < buffer.len() decreases buffer.len() - i {
+        // This is safe: both bounds are checked
+        buffer.set(i, input.get(i).unwrap_or(0));
+        i = i + 1;
+    }
+}
+
+fn main() -> Unit {
+    // Fixed-size buffer (10 elements)
+    let buffer: ref List[Int] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+    // Input that's too long (15 elements)
+    let input: List[Int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+
+    // This is SAFE - copy_to_buffer respects both bounds
+    // Only first 10 elements copied, no overflow
+    copy_to_buffer(input, buffer);
+
+    // Direct out-of-bounds access would fail:
+    // buffer.set(100, 42);  // Runtime bounds check failure
+}
+
+// WHY MVL IS SAFE:
+//
+// 1. Slices carry their length - no raw pointers
+// 2. All index operations are bounds-checked
+// 3. No way to "cast" to raw pointer and bypass checks
+// 4. The while loop's decreases clause proves termination

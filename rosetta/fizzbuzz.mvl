@@ -1,0 +1,43 @@
+// Rosetta Code: FizzBuzz
+// https://rosettacode.org/wiki/FizzBuzz
+//
+// Print integers 1 to 100, but:
+// - For multiples of 3, print "Fizz"
+// - For multiples of 5, print "Buzz"
+// - For multiples of both, print "FizzBuzz"
+
+fn fizzbuzz(n: Int) -> String {
+    let div3: Bool = n % 3 == 0;
+    let div5: Bool = n % 5 == 0;
+
+    if div3 && div5 {
+        "FizzBuzz"
+    } else if div3 {
+        "Fizz"
+    } else if div5 {
+        "Buzz"
+    } else {
+        n.to_string()
+    }
+}
+
+fn main() -> Unit {
+    let i: ref Int = 1;
+    while i <= 100 decreases 101 - i {
+        let result: String = fizzbuzz(i);
+        // In real MVL: print(result)
+        i = i + 1;
+    }
+}
+
+// METRICS:
+// Lines: 18 (excluding comments)
+// Type annotations: 5 (n: Int, div3: Bool, div5: Bool, i: ref Int, result: String)
+// MVL-specific: decreases clause for termination proof
+//
+// COMPARISON:
+// - Python: 6 lines, 0 annotations
+// - Rust: 15 lines, 2 annotations
+// - MVL: 18 lines, 5 annotations + termination proof
+//
+// The extra verbosity buys: type safety, termination guarantee

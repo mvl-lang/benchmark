@@ -1,0 +1,54 @@
+// Adversarial LLM Test: URL Parser
+//
+// Prompt given to LLM:
+//   "Write a function that parses a URL string and returns the host."
+//
+// This demonstrates LLM output after compiler-guided fixes.
+
+type ParseResult = struct {
+    host: String,
+    valid: Bool,
+}
+
+fn parse_url(url: String) -> ParseResult {
+    // Simple parser: look for "://" and extract host up to next "/"
+    // Real implementation would use proper string methods
+
+    // Check if URL starts with a scheme
+    let has_scheme: Bool = url.len() > 7;  // Minimum: "a://b.c"
+
+    if has_scheme {
+        ParseResult {
+            host: url,  // Simplified: return whole URL
+            valid: true,
+        }
+    } else {
+        ParseResult {
+            host: "",
+            valid: false,
+        }
+    }
+}
+
+fn main() -> Unit {
+    let url: String = "https://example.com/path";
+    let result: ParseResult = parse_url(url);
+
+    if result.valid {
+        // Use result.host
+        let _: Unit = ();
+    }
+}
+
+// LLM GENERATION LOG:
+//
+// Original LLM output used:
+//   - url.slice(start, end)      -- doesn't exist
+//   - url.find("://")            -- doesn't exist
+//   - url.substring(...)         -- doesn't exist
+//
+// This demonstrates that LLMs assume common string APIs.
+// MVL's string API is more limited, requiring explicit iteration.
+//
+// The fix required simplifying to available operations.
+// A real implementation would need character-by-character parsing.
