@@ -84,13 +84,14 @@ report:
 	@echo "  Languages: C, Go, Java, Python, Rust, MVL"
 	@echo ""
 	@echo "CWE Comparative:"
-	@echo "  Cases: $$(ls cwe_comparative/*.mvl 2>/dev/null | wc -l | tr -d ' ') (TODO)"
+	@echo "  Cases: $$(ls -d cwe_comparative/CWE-*/ 2>/dev/null | wc -l | tr -d ' ')"
+	@echo "  Languages: C, Go, Rust, TypeScript, MVL"
 	@echo ""
 	@echo "Rosetta:"
-	@echo "  Tasks: $$(ls rosetta/*.mvl 2>/dev/null | wc -l | tr -d ' ') (TODO)"
+	@echo "  Tasks: $$(ls rosetta/*.mvl 2>/dev/null | wc -l | tr -d ' ')"
 	@echo ""
 	@echo "Adversarial LLM:"
-	@echo "  Programs: $$(ls adversarial_llm/*.mvl 2>/dev/null | wc -l | tr -d ' ') (TODO)"
+	@echo "  Programs: $$(ls adversarial_llm/*.mvl 2>/dev/null | wc -l | tr -d ' ')"
 
 # Clean build artifacts
 clean:
