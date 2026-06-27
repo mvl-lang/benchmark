@@ -1,0 +1,76 @@
+// Performance Benchmark: JSON Parsing
+//
+// Parse JSON documents, measure throughput and memory.
+// Focus: bounds-checked string operations overhead.
+
+type JsonValue = enum {
+    Null,
+    Bool { value: Bool },
+    Number { value: Int },
+    Str { value: String },
+    Array { items: List[JsonValue] },
+    Object { pairs: List[JsonPair] },
+}
+
+type JsonPair = struct {
+    key: String,
+    value: JsonValue,
+}
+
+type ParseState = struct {
+    input: String,
+    pos: ref Int,
+}
+
+fn skip_whitespace(state: ref ParseState) -> Unit {
+    let len: Int = state.input.len();
+    while state.pos < len decreases len - state.pos {
+        // Would check for space, tab, newline
+        // Simplified: just increment
+        state.pos = state.pos + 1;
+    }
+}
+
+fn parse_value(state: ref ParseState) -> Option[JsonValue] {
+    skip_whitespace(state);
+
+    // Simplified parser - real one would be more complete
+    if state.pos >= state.input.len() {
+        return None;
+    }
+
+    // Return placeholder
+    Some(JsonValue::Null)
+}
+
+fn main() -> Unit {
+    // Benchmark configuration
+    let iterations: Int = 10000;
+
+    // Sample JSON (would be loaded from file in real benchmark)
+    let json: String = "{\"name\":\"test\",\"values\":[1,2,3]}";
+
+    let i: ref Int = 0;
+    while i < iterations decreases iterations - i {
+        let state: ref ParseState = ParseState {
+            input: json,
+            pos: 0,
+        };
+        let _result: Option[JsonValue] = parse_value(state);
+        i = i + 1;
+    }
+}
+
+// BENCHMARK NOTES:
+//
+// Overhead sources in MVL:
+// 1. Bounds checks on every string access
+// 2. UTF-8 validation (implicit)
+// 3. Allocation for intermediate values
+//
+// Optimization opportunities:
+// - Batch bounds checks (check once for range)
+// - Arena allocation for parse tree
+// - SIMD for whitespace skipping (future)
+//
+// Target: <1.5x overhead vs unsafe C/Rust

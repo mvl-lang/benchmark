@@ -1,0 +1,71 @@
+// Performance Benchmark: Actor Ping-Pong
+//
+// Two actors exchange messages as fast as possible.
+// Measures basic message-passing overhead.
+
+type Ping = struct {
+    count: Int,
+}
+
+type Pong = struct {
+    count: Int,
+}
+
+type PingActor = struct {
+    partner: ActorRef[PongActor],
+    received: ref Int,
+    target: Int,
+}
+
+type PongActor = struct {
+    received: ref Int,
+}
+
+// Ping actor: sends Ping, waits for Pong, repeats
+fn ping_handle(self: ref PingActor, msg: Pong) -> Unit {
+    self.received = self.received + 1;
+    if self.received < self.target {
+        // Send next ping
+        // send self.partner <- Ping { count: self.received };
+        let _: Unit = ();
+    }
+}
+
+// Pong actor: receives Ping, sends Pong back
+fn pong_handle(self: ref PongActor, msg: Ping) -> Unit {
+    self.received = self.received + 1;
+    // send msg.sender <- Pong { count: self.received };
+}
+
+fn main() -> Unit {
+    // Configuration
+    let iterations: Int = 1000000;  // 1M round trips
+
+    // In real benchmark:
+    // 1. Spawn PongActor
+    // 2. Spawn PingActor with reference to PongActor
+    // 3. Start timer
+    // 4. Send initial Ping
+    // 5. Wait for completion
+    // 6. Stop timer, calculate throughput
+
+    // Placeholder for now
+    let _: Int = iterations;
+}
+
+// BENCHMARK NOTES:
+//
+// MVL Actor Runtime:
+// - Work-stealing scheduler (crossbeam)
+// - Lock-free mailboxes
+// - Reduction budget: 4000 reductions before yield
+//
+// Expected performance:
+// - Rust baseline: ~10M msgs/sec (single core)
+// - Go channels: ~5M msgs/sec
+// - MVL target: >5M msgs/sec (bounds checks + safety)
+//
+// Overhead sources:
+// - Message serialization (if crossing threads)
+// - Mailbox synchronization
+// - Scheduler overhead

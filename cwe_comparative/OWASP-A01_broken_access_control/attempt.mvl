@@ -1,0 +1,118 @@
+// OWASP A01: Broken Access Control
+// MVL version - IFC labels enforce authorization
+
+// Security labels for access control
+type AccessLevel = enum {
+    Public,
+    Private,
+    Admin,
+}
+
+type User = struct {
+    id: Int,
+    name: String,
+    role: AccessLevel,
+}
+
+type AuthContext = struct {
+    user_id: Int,
+    access_level: AccessLevel,
+}
+
+// User data is labeled with required access level
+type UserData = struct {
+    user: User,
+    required_level: AccessLevel,
+}
+
+// Check if access is allowed
+fn can_access(ctx: AuthContext, data: UserData) -> Bool {
+    match data.required_level {
+        AccessLevel::Public => true,
+        AccessLevel::Private => {
+            // Own data or admin
+            ctx.user_id == data.user.id || match ctx.access_level {
+                AccessLevel::Admin => true,
+                _ => false,
+            }
+        },
+        AccessLevel::Admin => {
+            match ctx.access_level {
+                AccessLevel::Admin => true,
+                _ => false,
+            }
+        },
+    }
+}
+
+// SAFE: Access check is mandatory
+fn get_user(ctx: AuthContext, target_id: Int, users: List[UserData]) -> Option[User] {
+    let i: ref Int = 0;
+    while i < users.len() decreases users.len() - i {
+        let data: UserData = users.get(i).unwrap_or(UserData {
+            user: User { id: 0, name: "", role: AccessLevel::Public },
+            required_level: AccessLevel::Admin,
+        });
+
+        if data.user.id == target_id {
+            // IFC would enforce this check at compile time
+            // Here we do it explicitly
+            if can_access(ctx, data) {
+                return Some(data.user);
+            } else {
+                return None;  // Access denied
+            }
+        }
+        i = i + 1;
+    }
+    None
+}
+
+fn main() -> Unit {
+    let alice: UserData = UserData {
+        user: User { id: 1, name: "Alice", role: AccessLevel::Admin },
+        required_level: AccessLevel::Private,
+    };
+    let bob: UserData = UserData {
+        user: User { id: 2, name: "Bob", role: AccessLevel::Public },
+        required_level: AccessLevel::Private,
+    };
+    let users: List[UserData] = [alice, bob];
+
+    // Eve tries to access Bob's data
+    let eve_ctx: AuthContext = AuthContext {
+        user_id: 3,
+        access_level: AccessLevel::Public,
+    };
+
+    let result: Option[User] = get_user(eve_ctx, 2, users);
+
+    // Result is None - access denied
+    match result {
+        None => {
+            // Correct: Eve cannot access Bob's data
+            let _: Unit = ();
+        },
+        Some(_) => {
+            // Would be a bug
+            panic("Access control failure!");
+        },
+    }
+}
+
+// WHY MVL HELPS:
+//
+// 1. IFC LABELS (when fully implemented)
+//    User data is labeled with required access level
+//    Compiler enforces that checks happen before access
+//
+// 2. EXPLICIT AUTHORIZATION
+//    The type system requires AuthContext for data access
+//    Can't accidentally bypass the check
+//
+// 3. EFFECT SYSTEM (future)
+//    fn get_user(...) -> User ! AuthRequired
+//    Caller must provide authorization evidence
+//
+// 4. NO IMPLICIT COERCIONS
+//    Can't cast away the access level requirement

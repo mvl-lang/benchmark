@@ -1,0 +1,63 @@
+// Performance Benchmark: Actor Ring
+//
+// N actors arranged in a ring, passing a token around M times.
+// Measures actor spawn overhead and message routing.
+
+type Token = struct {
+    value: Int,
+    hops: Int,
+}
+
+type RingNode = struct {
+    id: Int,
+    next: Option[Int],  // Would be ActorRef in real code
+    received: ref Int,
+}
+
+fn ring_node_handle(self: ref RingNode, token: Token) -> Unit {
+    self.received = self.received + 1;
+
+    if token.hops > 0 {
+        // Forward to next node
+        let new_token: Token = Token {
+            value: token.value,
+            hops: token.hops - 1,
+        };
+        // send self.next <- new_token;
+        let _: Token = new_token;
+    }
+}
+
+fn main() -> Unit {
+    // Configuration
+    let ring_size: Int = 100;       // 100 actors
+    let token_hops: Int = 1000000;  // 1M hops around ring
+
+    // Total messages = token_hops (each hop is one message)
+    // Each actor handles ~10K messages
+
+    // In real benchmark:
+    // 1. Spawn ring_size actors
+    // 2. Link each to the next (circular)
+    // 3. Start timer
+    // 4. Inject token into first actor
+    // 5. Wait for token.hops to reach 0
+    // 6. Stop timer
+
+    let _: Int = ring_size * token_hops;
+}
+
+// BENCHMARK NOTES:
+//
+// This tests:
+// - Actor spawn overhead (100 actors)
+// - Message routing (which actor handles which message)
+// - Work-stealing efficiency (actors on different cores)
+//
+// Expected scaling:
+// - 1 core: baseline
+// - 4 cores: ~2-3x speedup (limited by ring topology)
+// - 16 cores: ~4-6x speedup (work stealing helps)
+//
+// Ring topology is worst-case for parallelism (sequential dependency)
+// but tests scheduler fairness.

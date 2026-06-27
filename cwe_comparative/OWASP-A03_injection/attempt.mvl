@@ -1,0 +1,65 @@
+// OWASP A03: Injection (Command Injection variant)
+// MVL version - Effects system prevents shell execution
+
+// Effect declaration: running shell commands requires Shell effect
+// effect Shell {
+//     fn exec(cmd: String) -> String;
+// }
+
+// In MVL, effects must be declared and handled.
+// A function that doesn't declare Shell effect CANNOT execute commands.
+
+type CommandResult = struct {
+    output: String,
+    success: Bool,
+}
+
+// SAFE: This function cannot execute shell commands
+// because it doesn't have the Shell effect
+fn get_file_info_safe(filename: String) -> CommandResult {
+    // Cannot call shell here - no Shell effect declared
+    // Would be compile error: "effect Shell not in scope"
+
+    // Must use safe file API instead
+    CommandResult {
+        output: filename,  // Just return the filename
+        success: true,
+    }
+}
+
+// If we wanted shell access, we'd need to declare it:
+// fn get_file_info_unsafe(filename: String) -> CommandResult ! Shell {
+//     // Now shell.exec() is available
+//     // But caller must handle the Shell effect
+// }
+
+// Entry point - effects must be resolved here
+fn main() -> Unit {
+    let user_input: String = "myfile.txt; cat /etc/passwd";
+
+    // Safe: no shell execution possible
+    let result: CommandResult = get_file_info_safe(user_input);
+
+    // The malicious payload is just a string
+    // It never gets executed because Shell effect isn't available
+}
+
+// WHY MVL PREVENTS COMMAND INJECTION:
+//
+// 1. EFFECT SYSTEM
+//    Shell access requires declaring `! Shell` effect
+//    Functions without it CANNOT execute commands
+//    Injection is impossible if you can't reach the shell
+//
+// 2. IFC LABELS
+//    User input is labeled Untrusted
+//    Shell.exec requires Trusted input
+//    Direct flow from user input to shell is compile error
+//
+// 3. NO IMPLICIT COERCIONS
+//    Can't convert Untrusted to Trusted without explicit sanitization
+//    The sanitization function is the audit point
+//
+// 4. PRINCIPLE OF LEAST PRIVILEGE
+//    Most functions don't need Shell effect
+//    Attack surface is minimized by design

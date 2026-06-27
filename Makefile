@@ -6,7 +6,7 @@
 #   make test-all      Run all benchmark suites
 #   make report        Generate metrics report
 
-.PHONY: all test-cve test-cve-compare test-cwe test-rosetta test-llm test-all report clean help
+.PHONY: all test-cve test-cve-compare test-cwe test-rosetta test-llm test-perf test-all report clean help
 
 all: help
 
@@ -17,9 +17,10 @@ help:
 	@echo "  make test-cve          Run CVE replication tests (MVL only)"
 	@echo "  make test-cve-compare  Run CVE tests with vulnerable versions"
 	@echo "  make test-cve-explain  Run CVE tests with explanations"
-	@echo "  make test-cwe          Run CWE comparative matrix"
+	@echo "  make test-cwe          Run CWE/OWASP comparative matrix"
 	@echo "  make test-rosetta      Run Rosetta translation tests"
 	@echo "  make test-llm          Run adversarial LLM tests"
+	@echo "  make test-perf         Run performance benchmarks"
 	@echo "  make test-all          Run all benchmark suites"
 	@echo "  make report            Generate metrics report"
 	@echo "  make clean             Clean build artifacts"
@@ -43,14 +44,30 @@ test-cve-explain:
 	@echo "═══════════════════════════════════════════════════════════════"
 	cd cve_replication && ./run_tests.sh --explain
 
-# CWE Comparative Matrix (placeholder)
+# CWE Comparative Matrix
 test-cwe:
 	@echo "═══════════════════════════════════════════════════════════════"
-	@echo "  CWE Comparative Matrix"
+	@echo "  CWE / OWASP Comparative Matrix"
 	@echo "═══════════════════════════════════════════════════════════════"
-	@echo "  Status: Not yet implemented"
-	@echo "  TODO: Create vulnerability snippets for CWE Top 25"
-	@test -d cwe_comparative && ls cwe_comparative/ || echo "  Directory empty"
+	@echo ""
+	@for dir in cwe_comparative/CWE-*/ cwe_comparative/OWASP-*/; do \
+		if [ -d "$$dir" ]; then \
+			name=$$(basename "$$dir"); \
+			mvl_file="$$dir/attempt.mvl"; \
+			if [ -f "$$mvl_file" ]; then \
+				result=$$(mvl check "$$mvl_file" 2>&1); \
+				if echo "$$result" | grep -q "OK"; then \
+					echo "  ✅ $$name"; \
+				else \
+					echo "  ❌ $$name (compile error)"; \
+				fi; \
+			else \
+				echo "  ⚠️  $$name (no attempt.mvl)"; \
+			fi; \
+		fi; \
+	done
+	@echo ""
+	@echo "  Cases: $$(ls -d cwe_comparative/CWE-*/ cwe_comparative/OWASP-*/ 2>/dev/null | wc -l | tr -d ' ')"
 
 # Rosetta Translation (placeholder)
 test-rosetta:
@@ -70,8 +87,34 @@ test-llm:
 	@echo "  TODO: Generate and test LLM-written MVL programs"
 	@test -d adversarial_llm && ls adversarial_llm/ || echo "  Directory empty"
 
+# Performance benchmarks
+test-perf:
+	@echo "═══════════════════════════════════════════════════════════════"
+	@echo "  Performance Benchmarks"
+	@echo "═══════════════════════════════════════════════════════════════"
+	@echo ""
+	@echo "Actors:"
+	@for dir in performance/actors/*/; do \
+		if [ -d "$$dir" ]; then \
+			name=$$(basename "$$dir"); \
+			echo "  - $$name"; \
+		fi; \
+	done
+	@echo ""
+	@echo "Strings:"
+	@for dir in performance/strings/*/; do \
+		if [ -d "$$dir" ]; then \
+			name=$$(basename "$$dir"); \
+			echo "  - $$name"; \
+		fi; \
+	done
+	@echo ""
+	@echo "Run individual benchmarks:"
+	@echo "  cd performance/actors/ping_pong && make bench"
+	@echo "  cd performance/actors/ring && make bench"
+
 # Run all tests
-test-all: test-cve test-cwe test-rosetta test-llm
+test-all: test-cve test-cwe test-rosetta test-llm test-perf
 
 # Generate report
 report:
@@ -83,15 +126,20 @@ report:
 	@echo "  Cases: $$(ls -d cve_replication/CVE-*/ 2>/dev/null | wc -l | tr -d ' ')"
 	@echo "  Languages: C, Go, Java, Python, Rust, MVL"
 	@echo ""
-	@echo "CWE Comparative:"
-	@echo "  Cases: $$(ls -d cwe_comparative/CWE-*/ 2>/dev/null | wc -l | tr -d ' ')"
-	@echo "  Languages: C, Go, Rust, TypeScript, MVL"
+	@echo "CWE / OWASP Comparative:"
+	@echo "  CWE cases: $$(ls -d cwe_comparative/CWE-*/ 2>/dev/null | wc -l | tr -d ' ')"
+	@echo "  OWASP cases: $$(ls -d cwe_comparative/OWASP-*/ 2>/dev/null | wc -l | tr -d ' ')"
+	@echo "  Languages: C, Go, Rust, TypeScript, Python, MVL"
 	@echo ""
 	@echo "Rosetta:"
 	@echo "  Tasks: $$(ls rosetta/*.mvl 2>/dev/null | wc -l | tr -d ' ')"
 	@echo ""
 	@echo "Adversarial LLM:"
 	@echo "  Programs: $$(ls adversarial_llm/*.mvl 2>/dev/null | wc -l | tr -d ' ')"
+	@echo ""
+	@echo "Performance:"
+	@echo "  Actor benchmarks: $$(ls -d performance/actors/*/ 2>/dev/null | wc -l | tr -d ' ')"
+	@echo "  String benchmarks: $$(ls -d performance/strings/*/ 2>/dev/null | wc -l | tr -d ' ')"
 
 # Clean build artifacts
 clean:
