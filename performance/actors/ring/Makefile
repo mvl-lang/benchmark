@@ -23,8 +23,9 @@ bench-mvl:
 	@echo "═══════════════════════════════════════════════════════════════"
 	@echo "  MVL Actors Ring"
 	@echo "═══════════════════════════════════════════════════════════════"
-	@echo "  (Not yet runnable - actor spawn syntax pending)"
-	$(MVL) check bench.mvl
+	@echo "  Note: Ring topology requires circular refs"
+	@echo "  MVL actors use one-way ownership; would need supervisor pattern"
+	$(MVL) run bench.mvl
 
 clean:
 	rm -f bench_go

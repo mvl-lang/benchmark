@@ -1,71 +1,58 @@
 // Performance Benchmark: Actor Ping-Pong
 //
-// Two actors exchange messages as fast as possible.
-// Measures basic message-passing overhead.
+// Two actors exchange messages. Uses message-based state tracking.
+// External timing via `time mvl run bench.mvl`
+//
+// Run: time mvl run bench.mvl
 
-type Ping = struct {
-    count: Int,
-}
+use std.io.{println}
 
-type Pong = struct {
-    count: Int,
-}
+// Messages carry the current count
+type Ping = struct { seq: Int }
+type Pong = struct { seq: Int }
+type Start = struct { target: Int }
+type Done = struct { count: Int }
 
-type PingActor = struct {
-    partner: ActorRef[PongActor],
-    received: ref Int,
-    target: Int,
-}
+// Pong actor: receives Ping, sends Pong back
+actor PongActor {
+    ping: PingActor,
 
-type PongActor = struct {
-    received: ref Int,
-}
-
-// Ping actor: sends Ping, waits for Pong, repeats
-fn ping_handle(self: ref PingActor, msg: Pong) -> Unit {
-    self.received = self.received + 1;
-    if self.received < self.target {
-        // Send next ping
-        // send self.partner <- Ping { count: self.received };
-        let _: Unit = ();
+    pub fn receive_ping(msg: Ping) ! Send {
+        self.ping.receive_pong(Pong { seq: msg.seq })
     }
 }
 
-// Pong actor: receives Ping, sends Pong back
-fn pong_handle(self: ref PongActor, msg: Ping) -> Unit {
-    self.received = self.received + 1;
-    // send msg.sender <- Pong { count: self.received };
+// Ping actor: receives Start, sends Pings, tracks completion
+actor PingActor {
+    pong: PongActor,
+
+    pub fn start(msg: Start) ! Send + Console {
+        if msg.target > 0 {
+            self.pong.receive_ping(Ping { seq: msg.target })
+        } else {
+            println("Completed 0 round-trips")
+        }
+    }
+
+    pub fn receive_pong(msg: Pong) ! Send + Console {
+        let remaining: Int = msg.seq - 1;
+        if remaining > 0 {
+            self.pong.receive_ping(Ping { seq: remaining })
+        } else {
+            println("Completed benchmark")
+        }
+    }
 }
 
-fn main() -> Unit {
-    // Configuration
-    let iterations: Int = 1000000;  // 1M round trips
+partial fn main() -> Unit ! Console + Spawn + Send {
+    let iterations: Int = 100000;  // 100K for quick test
 
-    // In real benchmark:
-    // 1. Spawn PongActor
-    // 2. Spawn PingActor with reference to PongActor
-    // 3. Start timer
-    // 4. Send initial Ping
-    // 5. Wait for completion
-    // 6. Stop timer, calculate throughput
+    // Create actors (circular reference via forward declaration)
+    // Note: This requires MVL to support forward actor references
+    // or a different initialization pattern.
 
-    // Placeholder for now
-    let _: Int = iterations;
+    // For now, demonstrate the pattern compiles:
+    println("MVL Actor Ping-Pong Benchmark")
+    println("Iterations: ".concat(iterations.to_string()))
+    println("(Actor instantiation requires forward reference support)")
 }
-
-// BENCHMARK NOTES:
-//
-// MVL Actor Runtime:
-// - Work-stealing scheduler (crossbeam)
-// - Lock-free mailboxes
-// - Reduction budget: 4000 reductions before yield
-//
-// Expected performance:
-// - Rust baseline: ~10M msgs/sec (single core)
-// - Go channels: ~5M msgs/sec
-// - MVL target: >5M msgs/sec (bounds checks + safety)
-//
-// Overhead sources:
-// - Message serialization (if crossing threads)
-// - Mailbox synchronization
-// - Scheduler overhead

@@ -2,62 +2,45 @@
 //
 // N actors arranged in a ring, passing a token around M times.
 // Measures actor spawn overhead and message routing.
+//
+// Run: time mvl run bench.mvl
 
-type Token = struct {
-    value: Int,
-    hops: Int,
-}
+use std.io.{println}
 
-type RingNode = struct {
+// Token message - carries hop count
+type Token = struct { hops: Int }
+
+// Ring node actor - forwards token to next node
+actor RingNode {
     id: Int,
-    next: Option[Int],  // Would be ActorRef in real code
-    received: ref Int,
-}
+    next: RingNode,
 
-fn ring_node_handle(self: ref RingNode, token: Token) -> Unit {
-    self.received = self.received + 1;
-
-    if token.hops > 0 {
-        // Forward to next node
-        let new_token: Token = Token {
-            value: token.value,
-            hops: token.hops - 1,
-        };
-        // send self.next <- new_token;
-        let _: Token = new_token;
+    pub fn receive_token(token: Token) ! Send + Console {
+        if token.hops > 0 {
+            // Forward to next node
+            self.next.receive_token(Token { hops: token.hops - 1 })
+        } else {
+            // Done - token has traveled the ring
+            println("Ring complete at node ".concat(self.id.to_string()))
+        }
     }
 }
 
-fn main() -> Unit {
-    // Configuration
-    let ring_size: Int = 100;       // 100 actors
-    let token_hops: Int = 1000000;  // 1M hops around ring
+// Note: Creating a ring requires the last node to point back to the first,
+// which is a circular reference. MVL's actor ownership model doesn't support
+// this directly.
+//
+// Alternative patterns:
+// 1. Use a router actor that dispatches to ring nodes by ID
+// 2. Use a supervisor that manages the ring topology
+// 3. Use async channels instead of direct actor references
 
-    // Total messages = token_hops (each hop is one message)
-    // Each actor handles ~10K messages
+partial fn main() -> Unit ! Console {
+    let ring_size: Int = 100;
+    let token_hops: Int = 100000;
 
-    // In real benchmark:
-    // 1. Spawn ring_size actors
-    // 2. Link each to the next (circular)
-    // 3. Start timer
-    // 4. Inject token into first actor
-    // 5. Wait for token.hops to reach 0
-    // 6. Stop timer
-
-    let _: Int = ring_size * token_hops;
+    println("MVL Actor Ring Benchmark")
+    println("Ring size: ".concat(ring_size.to_string()))
+    println("Token hops: ".concat(token_hops.to_string()))
+    println("(Ring topology requires circular refs - see comments)")
 }
-
-// BENCHMARK NOTES:
-//
-// This tests:
-// - Actor spawn overhead (100 actors)
-// - Message routing (which actor handles which message)
-// - Work-stealing efficiency (actors on different cores)
-//
-// Expected scaling:
-// - 1 core: baseline
-// - 4 cores: ~2-3x speedup (limited by ring topology)
-// - 16 cores: ~4-6x speedup (work stealing helps)
-//
-// Ring topology is worst-case for parallelism (sequential dependency)
-// but tests scheduler fairness.

@@ -24,8 +24,9 @@ bench-mvl:
 	@echo "═══════════════════════════════════════════════════════════════"
 	@echo "  MVL Actors Ping-Pong"
 	@echo "═══════════════════════════════════════════════════════════════"
-	@echo "  (Not yet runnable - actor spawn syntax pending)"
-	$(MVL) check bench.mvl
+	@echo "  Note: Ping-pong requires circular actor refs (ping<->pong)"
+	@echo "  MVL actors use one-way ownership; see actor_webserver example"
+	$(MVL) run bench.mvl
 
 bench-rust:
 	@echo "═══════════════════════════════════════════════════════════════"
