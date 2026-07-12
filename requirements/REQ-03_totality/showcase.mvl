@@ -26,8 +26,13 @@ type Permission = enum {
     Denied,
 }
 
+// ── Pattern 1: Explicit arms — one per variant ───────────────────────────
+//
+// Every variant is named individually. Adding a new HttpMethod later forces
+// a compile error at every match site — the safest pattern for security
+// dispatch where each case requires a deliberate, reviewed decision.
 // `total fn` here makes termination explicit (REQ-8), but the exhaustive
-// match below is enforced by REQ-3 regardless of the `total` keyword.
+// match is enforced by REQ-3 regardless of the `total` keyword.
 total fn required_permission(method: HttpMethod) -> Permission {
     match method {
         HttpMethod::Get    => Permission::ReadOnly,
