@@ -1,0 +1,46 @@
+// CWE-476: NULL Pointer Dereference
+// MVL: Option[T] eliminates null — None must be handled at compile time
+
+type User = struct {
+    id: Int,
+    name: String,
+}
+
+fn find_user(id: Int) -> Option[User] {
+    if id == 42 {
+        Some(User { id: 42, name: "alice" })
+    } else {
+        None
+    }
+}
+
+fn main() -> Unit {
+    // Compiler requires a match arm for None — no dereference without check
+    match find_user(99) {
+        Some(u) => {
+            let _: String = u.name;
+        },
+        None => {
+            // Explicitly handled — no crash, no UB
+            let _: Unit = ();
+        },
+    }
+}
+
+// WHY MVL PREVENTS CWE-476:
+//
+// 1. NO NULL TYPE
+//    Option[T] is the only way to express "maybe absent"
+//    There is no null/nil/nullptr in MVL
+//
+// 2. FORCED HANDLING
+//    The compiler requires a match arm for None
+//    Accessing the inner value requires first checking Some
+//
+// 3. NO UNWRAP
+//    MVL has no .unwrap() — use unwrap_or(default) or match
+//    The None case must always produce a value of the right type
+//
+// 4. TYPE-LEVEL GUARANTEE
+//    A function returning User (not Option[User]) is proven non-null
+//    A function returning Option[User] must be matched before use

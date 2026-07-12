@@ -1,0 +1,81 @@
+// CWE-22: Path Traversal
+// MVL: Tainted[String] prevents user-supplied paths from reaching file I/O
+// without an explicit, auditable validation step at the trust boundary
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PART 1: IFC trust boundary
+//
+// In a real system, user input (HTTP request, stdin) arrives as Tainted[String].
+// Tainted[String] is a distinct type from String — it cannot flow into functions
+// that expect a plain String without an explicit relabel.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Validates and strips the taint label — the only path across the trust boundary.
+// Every such crossing is named (grep-auditable) and surrounded by validation logic.
+fn sanitize_path(user_path: Tainted[String]) -> Option[String] {
+    // Cross the trust boundary explicitly
+    let raw: String = relabel trust(user_path, "AUDIT-CWE22-001");
+
+    // Validation: reject traversal sequences and absolute paths
+    if raw.contains("..") {
+        return None;
+    }
+    if raw.starts_with("/") {
+        return None;
+    }
+    Some(raw)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PART 2: Validation logic (demonstrated with plain strings in main)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Path validation without the IFC layer — testable in isolation
+fn is_safe_path(raw: String) -> Bool {
+    if raw.contains("..") {
+        return false;
+    }
+    if raw.starts_with("/") {
+        return false;
+    }
+    true
+}
+
+fn main() -> Unit ! Console {
+    // Demonstrate that traversal patterns are caught
+    let attack: String = "../../etc/passwd";
+    let normal: String = "reports/q1.pdf";
+
+    // Attack path: rejected
+    match is_safe_path(attack) {
+        false => println("Blocked: traversal attempt"),
+        true  => println("Allowed (should not reach here)"),
+    }
+
+    // Safe path: allowed through
+    match is_safe_path(normal) {
+        true  => println("Allowed: safe path proceeds to file I/O"),
+        false => println("Blocked (should not reach here)"),
+    }
+}
+
+// WHY MVL PREVENTS CWE-22:
+//
+// 1. IFC TAINT LABELS
+//    User input arrives as Tainted[String] from HTTP/stdin boundaries.
+//    Tainted[String] is a distinct type — it cannot be passed where String
+//    is expected. File operations take String; compile error stops the flow.
+//
+// 2. EXPLICIT RELABEL AUDIT TRAIL
+//    relabel trust(x, "tag") is the only way to strip the Tainted label.
+//    Every crossing is named and survives grep -r relabel — full audit trail.
+//
+// 3. VALIDATION IS STRUCTURALLY FORCED
+//    To go Tainted[String] → String → file op, you must relabel, and the
+//    relabel site is where validation belongs. The structure makes forgetting
+//    it impossible without also removing the relabel.
+//
+// 4. EFFECT SYSTEM COMPLEMENT
+//    File I/O requires the FileRead effect in the function signature.
+//    Any function that touches both user input and files must declare FileRead,
+//    surfacing the risk in the API contract itself.
