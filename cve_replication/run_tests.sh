@@ -140,6 +140,7 @@ run_vulnerable() {
     [[ -f "$cve_dir/vulnerable.go" ]] && lang="Go"
     [[ -f "$cve_dir/vulnerable.py" ]] && lang="Py"
     [[ -f "$cve_dir/vulnerable.java" ]] && lang="Java"
+    [[ -f "$cve_dir/vulnerable.rs" ]] && lang="Rust"
 
     # Check for external dependency cases (Python/Java)
     if [[ "$lang" == "Py" || "$lang" == "Java" ]]; then
