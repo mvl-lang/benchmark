@@ -8,7 +8,6 @@
 //
 // Real-world impact: null dereferences are #12 in the CWE Top 25 (2023)
 // and a consistent source of crashes and exploitable conditions.
-
 type Session = struct {
     user_id: Int,
     token: String,
@@ -26,8 +25,6 @@ total fn lookup_session(token: String) -> Option[Session] {
 fn authenticate(token: String) -> Bool ! Console {
     match lookup_session(token) {
         Some(session) => {
-            // session fields are only accessible inside the Some arm
-            // lookup_session(token).user_id  // COMPILE ERROR: OptionDirectAccess (REQ-4)
             let _: Int = session.user_id;
             true
         },
@@ -38,6 +35,8 @@ fn authenticate(token: String) -> Bool ! Console {
     }
 }
 
+// session fields are only accessible inside the Some arm
+// lookup_session(token).user_id  // COMPILE ERROR: OptionDirectAccess (REQ-4)
 fn main() -> Unit ! Console {
     let _: Bool = authenticate("tok-abc123");
     let _: Bool = authenticate("");

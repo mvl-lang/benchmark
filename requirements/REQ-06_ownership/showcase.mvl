@@ -9,30 +9,28 @@
 // Real-world impact: mutable shared state is the root cause of race conditions.
 // When tokens and grants are immutable by default, accidental overwrite in
 // concurrent or callback-driven code is structurally prevented.
-
 type TokenClaims = struct {
     user_id: Int,
     scope: String,
     issued_at: Int,
 }
 
-total fn create_token(user_id: Int, scope: String) -> TokenClaims {
+total fn create_token(
+    user_id: Int,
+    scope: String,
+) -> TokenClaims {
     TokenClaims { user_id: user_id, scope: scope, issued_at: 0 }
 }
 
-total fn validate_scope(claims: TokenClaims, required: String) -> Bool {
-    claims.scope == required
-}
+total fn validate_scope(claims: TokenClaims, required: String) -> Bool { claims.scope == required }
 
 fn main() -> Unit ! Console {
-    // Immutable by default — cannot be silently overwritten after creation
     let claims: TokenClaims = create_token(42, "read:data");
-
-    // claims = create_token(99, "admin");  // COMPILE ERROR: AssignToImmutable (REQ-6)
-
     let valid: Bool = validate_scope(claims, "read:data");
     match valid {
-        true  => println("scope ok"),
+        true => println("scope ok"),
         false => println("scope denied"),
     }
 }
+// Immutable by default — cannot be silently overwritten after creation
+// claims = create_token(99, "admin");  // COMPILE ERROR: AssignToImmutable (REQ-6)

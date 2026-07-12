@@ -9,9 +9,9 @@
 //    ┌────────────┬──────┬───────┬───────┬──────────┬─────────────────────────┐
 //    │ Capability │ Read │ Write │ Alias │ Sendable │ Use case                │
 //    ├────────────┼──────┼───────┼───────┼──────────┼─────────────────────────┤
-//    │ val T      │  ✓   │       │  ✓    │    ✓     │ Immutable shared data   │
-//    │ iso T      │  ✓   │  ✓    │       │  ✓ (†)   │ Ownership transfer      │
-//    │ tag T      │      │       │  ✓    │    ✓     │ Opaque identity handle  │
+//    │ val T      │  ✓   │       │  ✓    │   ✓      │ Immutable shared data   │
+//    │ iso T      │  ✓   │  ✓    │       │   ✓ (†)  │ Ownership transfer      │
+//    │ tag T      │      │       │  ✓    │   ✓      │ Opaque identity handle  │
 //    │ ref T      │  ✓   │  ✓    │       │          │ Local mutable access    │
 //    └────────────┴──────┴───────┴───────┴──────────┴─────────────────────────┘
 //    (†) iso is sent by moving — the sender's binding is consumed.

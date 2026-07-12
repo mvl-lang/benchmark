@@ -9,8 +9,10 @@
 // Real-world impact: CWE-190 is #3 in the CWE Top 25 (2023). The classic
 // exploit is malloc(count * size) where the product wraps to a small number.
 // Refinement types make that statically impossible.
-
-total fn safe_divide(numerator: Int, denominator: Int where denominator != 0) -> Int {
+total fn safe_divide(
+    numerator: Int,
+    denominator: Int where denominator != 0,
+) -> Int {
     numerator / denominator
 }
 
@@ -21,19 +23,17 @@ total fn alloc_size(
     count * item_size
 }
 
-total fn bounded_index(idx: Int where idx >= 0, limit: Int where limit > 0) -> Bool {
-    idx < limit
-}
+total fn bounded_index(idx: Int where idx >= 0, limit: Int where limit > 0) -> Bool { idx < limit }
 
 // Call sites use literals — solver proves constraints statically
 total fn compute() -> Int {
-    let size: Int = alloc_size(100, 64);     // 100 >= 1, 64 >= 1 — proven
-    let rate: Int = safe_divide(size, 4);    // 4 != 0 — proven
+    let size: Int = alloc_size(100, 64);
+    let rate: Int = safe_divide(size, 4);
     rate
 }
 
 fn main() -> Unit ! Console {
     let result: Int = compute();
-    // safe_divide(result, 0);  // COMPILE ERROR: RefinementViolated (REQ-10)
     println(result.to_string())
 }
+// safe_divide(result, 0);  // COMPILE ERROR: RefinementViolated (REQ-10)

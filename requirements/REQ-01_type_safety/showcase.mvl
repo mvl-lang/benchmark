@@ -8,30 +8,34 @@
 // Real-world impact: CWE-843 type confusion vulnerabilities allow attackers
 // to cause programs to interpret data as the wrong type, enabling privilege
 // escalation, memory corruption, or logic bypass.
-
-type UserId    = struct { value: Int }
-type ProductId = struct { value: Int }
-type Price     = struct { cents: Int }
-
-// Even though UserId and ProductId both wrap Int, they are not interchangeable
-total fn is_valid_user(id: UserId) -> Bool {
-    id.value > 0
+type UserId = struct {
+    value: Int,
 }
 
-total fn apply_discount(price: Price, pct: Int) -> Price {
+type ProductId = struct {
+    value: Int,
+}
+
+type Price = struct {
+    cents: Int,
+}
+
+// Even though UserId and ProductId both wrap Int, they are not interchangeable
+total fn is_valid_user(id: UserId) -> Bool { id.value > 0 }
+
+total fn apply_discount(
+    price: Price,
+    pct: Int,
+) -> Price {
     Price { cents: price.cents * (100 - pct) / 100 }
 }
 
 fn main() -> Unit ! Console {
-    let uid: UserId    = UserId    { value: 42 };
+    let uid: UserId = UserId { value: 42 };
     let pid: ProductId = ProductId { value: 42 };
-
-    // is_valid_user(pid);  // COMPILE ERROR: expected UserId, got ProductId (REQ-1)
-
     let _: Bool = is_valid_user(uid);
-
     let p: Price = Price { cents: 1000 };
     let _: Price = apply_discount(p, 20);
-
     println("type safety: ok")
 }
+// is_valid_user(pid);  // COMPILE ERROR: expected UserId, got ProductId (REQ-1)
