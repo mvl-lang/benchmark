@@ -1,0 +1,41 @@
+// CWE-190: Integer Overflow or Wraparound
+// MVL: refinement types constrain arithmetic inputs; solver proves no overflow
+
+// Refined types that bound grid dimensions
+type GridDim  = Int where self >= 1 && self <= 4096
+type ItemSize = Int where self >= 1 && self <= 256
+
+// Maximum possible product: 4096 * 4096 * 256 = 4,294,967,296
+// MVL's Int is 64-bit, so this fits — the solver verifies it at every call site
+fn alloc_size(rows: GridDim, cols: GridDim, item_size: ItemSize) -> Int {
+    rows * cols * item_size
+}
+
+fn main() -> Unit {
+    let rows: GridDim  = 4096;
+    let cols: GridDim  = 4096;
+    let size: ItemSize = 4;
+
+    let byte_count: Int = alloc_size(rows, cols, size);
+    // Solver has proven: 1 <= byte_count <= 4,294,967,296 — no overflow possible
+    let _: Int = byte_count;
+}
+
+// WHY MVL PREVENTS CWE-190:
+//
+// 1. REFINEMENT TYPES CONSTRAIN INPUTS
+//    GridDim = Int where self >= 1 && self <= 4096
+//    The solver rejects any call that cannot prove the constraint holds.
+//    Passing 65537 where GridDim is required is a compile error.
+//
+// 2. SOLVER-DISCHARGED AT CALL SITES
+//    Every assignment `let rows: GridDim = value` is a proof obligation.
+//    If value comes from user input, the solver requires a bounds check first.
+//
+// 3. 64-BIT ARITHMETIC
+//    MVL's Int is 64-bit. With inputs bounded to 4096 and 256,
+//    the maximum product is 4,294,967,296 — well within range.
+//
+// 4. NO UNSAFE CAST
+//    There is no way to coerce an unconstrained Int to GridDim
+//    without the solver verifying the refinement predicate holds.
