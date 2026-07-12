@@ -1,13 +1,30 @@
 // REQ-8: Termination
 // CVE-2023-44487 HTTP/2 Rapid Reset / CWE-400: Uncontrolled Resource Consumption
 //
-// Total functions may only use bounded loops (`for`). Using `while` in a
-// total function is a compile error (UnboundedLoopInTotal). A total request
-// counter is proven to complete in bounded time — it cannot loop forever.
+// MVL distinguishes between functions that are PROVEN to terminate (`total fn`)
+// and functions that may run indefinitely (`partial fn`). This is not just a
+// label — the compiler enforces it:
 //
-// Real-world impact: the Rapid Reset attack sent an unbounded stream of
-// HEADERS + RST_STREAM frames, creating unbounded server work. A total
-// rate-limiter is proven to terminate regardless of input size.
+//   total fn  → may only use `for` (bounded) or `while ... decreases expr`
+//               (solver-proven variant); calling a partial fn is a compile error
+//   partial fn → may use unbounded `while`; cannot be called from total fn
+//
+// WHY THIS MATTERS
+// The annotation is a machine-checked proof obligation, not documentation.
+// Marking a function `total` means:
+//   - The compiler verifies it terminates for ALL inputs, not just test cases
+//   - Callers can compose it freely — two total fns composed are still total
+//   - The hot path of a server marked total cannot be exploited to hang it
+//   - A code reviewer sees `total fn` and knows: this cannot loop forever
+//
+// Real-world impact: the HTTP/2 Rapid Reset attack created unbounded server
+// work by flooding HEADERS+RST_STREAM frames. A total rate-limiter on the
+// ingress path is proven to finish regardless of what the attacker sends.
+
+// ── Pattern 1: total fn with `for` — bounded by construction ─────────────
+//
+// `for` iterates a finite collection. The compiler knows it terminates
+// without any extra annotation. This is the default choice for total fns.
 
 total fn count_requests(items: List[Int]) -> Int {
     let n: ref Int = 0;
@@ -25,20 +42,81 @@ total fn sum_bytes(lengths: List[Int]) -> Int {
     acc
 }
 
-total fn max_request_size(sizes: List[Int]) -> Int {
-    let biggest: ref Int = 0;
-    for s in sizes {
-        if s > biggest {
-            biggest = s
+// ── Pattern 2: total fn with `while ... decreases` — solver-proven ────────
+//
+// Sometimes you need a while loop in a total function — e.g. binary search,
+// early exit on match. The `decreases expr` annotation gives the solver a
+// variant: an expression that strictly decreases each iteration and is
+// bounded below (≥ 0). The compiler verifies this holds; if it cannot, the
+// function must be declared `partial` instead.
+
+total fn find_request(items: List[Int], target: Int) -> Bool {
+    let i: ref Int = 0;
+    while i < items.len() decreases items.len() - i {
+        match items.get(i) {
+            Some(v) => {
+                if v == target {
+                    return true;
+                }
+            },
+            None => {},
+        }
+        i = i + 1;
+    }
+    false
+}
+
+// ── Pattern 3: partial fn with unbounded `while` — accepted as partial ────
+//
+// A server accept loop runs until the listener is closed — there is no
+// finite bound on the number of iterations. This is a legitimate partial
+// function. It cannot be called from a total fn (compile error).
+
+partial fn accept_loop(limit: Int) -> Unit ! Console {
+    let received: ref Int = 0;
+    while true {
+        received = received + 1;
+        if received >= limit {
+            return;
         }
     }
-    biggest
 }
+
+// ── Calling conventions ───────────────────────────────────────────────────
+//
+// total → total : allowed   (composition preserves totality)
+// partial → total : allowed (partial can use proven-total helpers)
+// total → partial : COMPILE ERROR (PartialCallInTotal, REQ-8)
+//
+// This means: if the hot path of your server is total, it is provably free
+// of infinite loops — even if other parts of the system are partial.
+
+total fn rate_limit_check(sizes: List[Int], budget: Int) -> Bool {
+    let used: Int = sum_bytes(sizes);   // total calling total — fine
+    used <= budget
+}
+
+partial fn server_tick(sizes: List[Int], budget: Int) -> Unit ! Console {
+    let ok: Bool = rate_limit_check(sizes, budget);  // partial calling total — fine
+    // accept_loop(10);  // would also be fine here — partial calling partial
+    match ok {
+        true  => println("within budget"),
+        false => println("budget exceeded"),
+    }
+}
+
+// total fn broken(sizes: List[Int]) -> Unit ! Console {
+//     accept_loop(10)   // COMPILE ERROR: PartialCallInTotal (REQ-8)
+// }
 
 fn main() -> Unit ! Console {
     let sizes: List[Int] = [100, 200, 300, 150, 75];
-    let count: Int = count_requests(sizes);
-    let _: Int = sum_bytes(sizes);
-    let _: Int = max_request_size(sizes);
-    println(count.to_string())
+    let _: Int  = count_requests(sizes);
+    let _: Bool = find_request(sizes, 200);
+    let ok: Bool = rate_limit_check(sizes, 1000);
+    // server_tick(sizes, 1000)  — cannot call partial from main (total context)
+    match ok {
+        true  => println("within budget"),
+        false => println("budget exceeded"),
+    }
 }
