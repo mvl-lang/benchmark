@@ -1,14 +1,36 @@
 // REQ-9: Data Race Freedom
 // CVE-2025-68260 Rust Binder / CWE-362: Race Condition
 //
-// Functions with only `iso` or `val` parameters (no `ref`) are proven
-// data-race-free. `val` parameters are immutable and freely shareable;
-// `iso` parameters are uniquely owned. Neither can create aliased mutable
-// state — concurrent calls cannot corrupt shared data structures.
+// MVL adopts Pony's four reference capabilities to prove data-race freedom
+// at compile time. Each parameter mode encodes what the *caller* denies
+// itself, and the compiler uses that promise to decide whether the value
+// can safely cross an actor boundary.
+//
+//    ┌────────────┬──────┬───────┬───────┬──────────┬─────────────────────────┐
+//    │ Capability │ Read │ Write │ Alias │ Sendable │ Use case                │
+//    ├────────────┼──────┼───────┼───────┼──────────┼─────────────────────────┤
+//    │ val T      │  ✓   │       │  ✓    │    ✓     │ Immutable shared data   │
+//    │ iso T      │  ✓   │  ✓    │       │  ✓ (†)   │ Ownership transfer      │
+//    │ tag T      │      │       │  ✓    │    ✓     │ Opaque identity handle  │
+//    │ ref T      │  ✓   │  ✓    │       │          │ Local mutable access    │
+//    └────────────┴──────┴───────┴───────┴──────────┴─────────────────────────┘
+//    (†) iso is sent by moving — the sender's binding is consumed.
+//
+// Sendability is the property that matters for REQ-9. Three modes are safe
+// to send across actors because none of them lets two parties share a
+// *writable* view of the same memory:
+//   - val : nobody can write anywhere,          so no race is possible
+//   - iso : only one party can read or write,   so no race is possible
+//   - tag : nobody can read the contents,       so no data race is possible
+// `ref` is deliberately excluded — it grants read+write, so passing it
+// across a boundary would create the classic race condition the compiler
+// is here to prevent.
 //
 // Real-world impact: the Rust Binder CVE was a race on a shared linked list
-// accessed concurrently without adequate synchronisation. `val` parameters
-// give each caller an immutable snapshot — no shared mutable state to race on.
+// accessed concurrently without adequate synchronisation. In MVL the same
+// data structure would be reachable across actors only as `val` (shared but
+// immutable), `iso` (transferred, not shared), or `tag` (identity only) —
+// the shape that made the CVE possible cannot be typed.
 
 type DeathEntry = struct {
     process_id: Int,
@@ -25,28 +47,78 @@ type Connection = struct {
     port: Int,
 }
 
-// val: immutable, freely shareable — safe for concurrent callers
+type ActorRef = struct {
+    id: Int,
+}
+
+// ── val: read-only, freely shareable ─────────────────────────────────────
+//
+// The caller and every other reader see the same immutable snapshot.
+// No writes are possible anywhere — so concurrent reads race on nothing.
 total fn entry_matches(val entry: DeathEntry, target_pid: Int) -> Bool {
     entry.process_id == target_pid
 }
 
-// val: notification can be read concurrently without races
 total fn is_relevant(val notif: Notification, pid: Int) -> Bool {
     notif.pid == pid
 }
 
-// iso: uniquely owned — transferred via consume(), no aliasing possible
+// ── iso: uniquely owned, transferred by move ─────────────────────────────
+//
+// The caller loses its binding when the value is passed on with `consume`.
+// At any moment exactly one party can see the value — no aliasing means
+// no shared mutable state to race on.
 fn handle_connection(iso conn: Connection) -> Unit ! Console {
     let _: Connection = consume(conn);
     println("connection handled")
+}
+
+// ── tag: opaque identity handle ──────────────────────────────────────────
+//
+// A `tag` binding can be compared and passed around, but its contents
+// cannot be read or written. Perfect for holding a reference to another
+// actor: you can address messages to it and check identity, but you
+// cannot inspect or mutate its private state from the outside.
+fn same_actor(tag a: ActorRef, tag b: ActorRef) -> Bool {
+    a.id == b.id
+}
+
+// ── ref: local mutable access — NOT sendable ─────────────────────────────
+//
+// `ref` is fine and useful inside a single actor / thread, where the
+// compiler can prove no other party sees the same memory. It is REJECTED
+// as an actor-behavior parameter because it would allow two actors to
+// share writable state — the exact shape REQ-9 exists to forbid.
+fn accumulate(ref n: Int, delta: Int) -> Int {
+    n + delta
+}
+
+// ── Actor boundary: only val, iso, tag are accepted ──────────────────────
+//
+// Actor behaviors (`pub fn`) are async and cross-thread by nature. The
+// compiler enforces REQ-9 at that boundary: parameters must be sendable.
+actor RequestLog {
+    count: Int
+
+    pub fn record(val entry: DeathEntry) { }        // ✓ val
+    pub fn take(iso conn: Connection) { }           // ✓ iso
+    pub fn ping(tag from: ActorRef) { }             // ✓ tag identity ref
+    // pub fn tally(ref n: Int) { }                 // ✗ COMPILE ERROR:
+    //   error[REQ9]: `ref` capability of `n` cannot be sent across actor
+    //   boundary; use `iso` or `val`
 }
 
 fn main() -> Unit ! Console {
     let entry: DeathEntry = DeathEntry { process_id: 100, callback_id: 1 };
     let notif: Notification = Notification { message: "process exited", pid: 100 };
     let conn: Connection = Connection { host: "db.local", port: 5432 };
+    let a: ActorRef = ActorRef { id: 42 };
+    let b: ActorRef = ActorRef { id: 42 };
+    let n: ref Int = 0;
 
     let _: Bool = entry_matches(entry, 100);
     let _: Bool = is_relevant(notif, 100);
+    let _: Bool = same_actor(a, b);
+    let _: Int = accumulate(n, 5);
     handle_connection(conn)
 }
