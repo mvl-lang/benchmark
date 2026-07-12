@@ -1,0 +1,44 @@
+// REQ-8: Termination
+// CVE-2023-44487 HTTP/2 Rapid Reset / CWE-400: Uncontrolled Resource Consumption
+//
+// Total functions may only use bounded loops (`for`). Using `while` in a
+// total function is a compile error (UnboundedLoopInTotal). A total request
+// counter is proven to complete in bounded time — it cannot loop forever.
+//
+// Real-world impact: the Rapid Reset attack sent an unbounded stream of
+// HEADERS + RST_STREAM frames, creating unbounded server work. A total
+// rate-limiter is proven to terminate regardless of input size.
+
+total fn count_requests(items: List[Int]) -> Int {
+    let n: ref Int = 0;
+    for _item in items {
+        n = n + 1
+    }
+    n
+}
+
+total fn sum_bytes(lengths: List[Int]) -> Int {
+    let acc: ref Int = 0;
+    for len in lengths {
+        acc = acc + len
+    }
+    acc
+}
+
+total fn max_request_size(sizes: List[Int]) -> Int {
+    let biggest: ref Int = 0;
+    for s in sizes {
+        if s > biggest {
+            biggest = s
+        }
+    }
+    biggest
+}
+
+fn main() -> Unit ! Console {
+    let sizes: List[Int] = [100, 200, 300, 150, 75];
+    let count: Int = count_requests(sizes);
+    let _: Int = sum_bytes(sizes);
+    let _: Int = max_request_size(sizes);
+    println(count.to_string())
+}

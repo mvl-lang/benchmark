@@ -1,0 +1,49 @@
+// REQ-5: Error Visibility
+// OWASP A09: Security Logging and Monitoring Failures / CWE-390: Detection of
+// Error Condition Without Action
+//
+// Result[T, E] returned by fallible functions cannot be silently discarded
+// (ResultIgnored). Every failure path must be explicitly handled.
+//
+// Real-world impact: a failed audit-log write that is silently dropped creates
+// a compliance blind spot — attackers can perform actions that leave no trace
+// if the logging path fails and the code continues regardless.
+
+type AuditEvent = struct {
+    action: String,
+    user_id: Int,
+    success: Bool,
+}
+
+type AuditError = enum {
+    StorageFull,
+    PermissionDenied,
+    NetworkTimeout,
+}
+
+total fn write_audit_log(ev: AuditEvent) -> Result[Unit, AuditError] {
+    Ok(())
+}
+
+fn record_login(user_id: Int, success: Bool) -> Unit ! Console {
+    let ev: AuditEvent = AuditEvent {
+        action: "login",
+        user_id: user_id,
+        success: success,
+    };
+    // write_audit_log(ev);  // COMPILE ERROR: ResultIgnored (REQ-5)
+    match write_audit_log(ev) {
+        Ok(_) => {
+            println("audit logged")
+        },
+        Err(_) => {
+            // Failure surfaces as an explicit branch — never silently dropped
+            println("audit write failed — alert raised")
+        },
+    }
+}
+
+fn main() -> Unit ! Console {
+    record_login(42, true);
+    record_login(99, false)
+}
