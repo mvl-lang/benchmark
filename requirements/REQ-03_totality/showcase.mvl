@@ -1,9 +1,12 @@
 // REQ-3: Totality — Exhaustive Match
 // CWE-253: Incorrect Check of Function Return Value / OWASP A04 Insecure Design
 //
-// Total functions must handle every enum variant — a missing arm is a compile
-// error (NonExhaustiveMatch). Security-critical dispatch (ACL, HTTP method
-// routing, error codes) cannot silently fall through an unhandled case.
+// Every match expression must cover all enum variants — a missing arm is a
+// compile error (NonExhaustiveMatch). This applies to ALL functions, not just
+// those marked `total fn`. The `total fn` below is explicit about intent, but
+// the exhaustive-match requirement would fire on a plain `fn` too.
+// (Note: `total fn` is REQ-8 Termination — no unbounded loops. REQ-3 is
+// purely about match coverage, enforced unconditionally.)
 //
 // Real-world impact: adding a new HTTP method or permission level to an enum
 // without updating dispatch logic can silently grant unintended access.
@@ -23,6 +26,8 @@ type Permission = enum {
     Denied,
 }
 
+// `total fn` here makes termination explicit (REQ-8), but the exhaustive
+// match below is enforced by REQ-3 regardless of the `total` keyword.
 total fn required_permission(method: HttpMethod) -> Permission {
     match method {
         HttpMethod::Get    => Permission::ReadOnly,
@@ -30,7 +35,7 @@ total fn required_permission(method: HttpMethod) -> Permission {
         HttpMethod::Put    => Permission::ReadWrite,
         HttpMethod::Delete => Permission::ReadWrite,
         HttpMethod::Patch  => Permission::ReadWrite,
-        // Non-exhaustive match (missing Patch) would be a compile error (REQ-3)
+        // Missing any variant here is a compile error (REQ-3) — not REQ-8
     }
 }
 
