@@ -84,12 +84,16 @@ partial fn accept_loop(limit: Int) -> Unit ! Console {
 
 // ── Calling conventions ───────────────────────────────────────────────────
 //
-// total → total : allowed   (composition preserves totality)
-// partial → total : allowed (partial can use proven-total helpers)
-// total → partial : COMPILE ERROR (PartialCallInTotal, REQ-8)
+// total   → total   : allowed   (composition preserves totality)
+// partial → total   : allowed   (partial can use proven-total helpers)
+// total   → partial : COMPILE ERROR (PartialCallInTotal, REQ-8)
+// partial → partial : allowed
 //
-// This means: if the hot path of your server is total, it is provably free
-// of infinite loops — even if other parts of the system are partial.
+// Partials are NOT ruled out — the bridge is `partial fn main()`.
+// A short-lived CLI tool uses `fn main()` (implicitly total-checked).
+// A long-running server uses `partial fn main()`, which signals the program
+// itself may not terminate and unlocks calling partial functions from the
+// entry point. The annotation propagates honestly up to the program boundary.
 
 total fn rate_limit_check(sizes: List[Int], budget: Int) -> Bool {
     let used: Int = sum_bytes(sizes);   // total calling total — fine
@@ -109,14 +113,22 @@ partial fn server_tick(sizes: List[Int], budget: Int) -> Unit ! Console {
 //     accept_loop(10)   // COMPILE ERROR: PartialCallInTotal (REQ-8)
 // }
 
+// Short-lived program: fn main() is implicitly total-checked.
+// Calling server_tick (partial) here would be a compile error.
 fn main() -> Unit ! Console {
     let sizes: List[Int] = [100, 200, 300, 150, 75];
     let _: Int  = count_requests(sizes);
     let _: Bool = find_request(sizes, 200);
     let ok: Bool = rate_limit_check(sizes, 1000);
-    // server_tick(sizes, 1000)  — cannot call partial from main (total context)
     match ok {
         true  => println("within budget"),
         false => println("budget exceeded"),
     }
 }
+
+// Long-running server: partial fn main() signals the program may not
+// terminate and allows calling partial functions freely.
+// partial fn main() -> Unit ! Console {
+//     let sizes: List[Int] = [100, 200, 300];
+//     server_tick(sizes, 1000)   // fine — partial calling partial
+// }
