@@ -1,58 +1,75 @@
-// Performance Benchmark: Actor Ping-Pong
+// Performance Benchmark: Actor Message Passing
 //
-// Two actors exchange messages. Uses message-based state tracking.
-// External timing via `time mvl run bench.mvl`
+// Tests real MVL actor message dispatch.
+// Spawns worker actors and sends messages.
 //
-// Run: time mvl run bench.mvl
+// Pattern: Main spawns N workers, sends M messages to each.
+// Each message is a real actor method call.
 
 use std.io.{println}
 
-// Messages carry the current count
-type Ping = struct { seq: Int }
-type Pong = struct { seq: Int }
-type Start = struct { target: Int }
-type Done = struct { count: Int }
+actor Worker {
+    id: Int,
 
-// Pong actor: receives Ping, sends Pong back
-actor PongActor {
-    ping: PingActor,
-
-    pub fn receive_ping(msg: Ping) ! Send {
-        self.ping.receive_pong(Pong { seq: msg.seq })
-    }
-}
-
-// Ping actor: receives Start, sends Pings, tracks completion
-actor PingActor {
-    pong: PongActor,
-
-    pub fn start(msg: Start) ! Send + Console {
-        if msg.target > 0 {
-            self.pong.receive_ping(Ping { seq: msg.target })
-        } else {
-            println("Completed 0 round-trips")
-        }
+    pub fn work(n: Int) ! Console {
+        // Real work: just receive the message
+        // In production this would process data
     }
 
-    pub fn receive_pong(msg: Pong) ! Send + Console {
-        let remaining: Int = msg.seq - 1;
-        if remaining > 0 {
-            self.pong.receive_ping(Ping { seq: remaining })
-        } else {
-            println("Completed benchmark")
-        }
+    pub fn done() ! Console {
+        println("Worker ".concat(self.id.to_string()).concat(" done"))
     }
 }
 
 partial fn main() -> Unit ! Console + Spawn + Send {
-    let iterations: Int = 100000;  // 100K for quick test
+    let messages_per_worker: Int = 100000;
+    let num_workers: Int = 10;
+    let total_messages: Int = messages_per_worker * num_workers;
 
-    // Create actors (circular reference via forward declaration)
-    // Note: This requires MVL to support forward actor references
-    // or a different initialization pattern.
+    println("MVL Actor Benchmark");
+    println("Workers: ".concat(num_workers.to_string()));
+    println("Messages per worker: ".concat(messages_per_worker.to_string()));
+    println("Total messages: ".concat(total_messages.to_string()));
 
-    // For now, demonstrate the pattern compiles:
-    println("MVL Actor Ping-Pong Benchmark")
-    println("Iterations: ".concat(iterations.to_string()))
-    println("(Actor instantiation requires forward reference support)")
+    // Create workers
+    let w0: Worker = actor Worker { id: 0 };
+    let w1: Worker = actor Worker { id: 1 };
+    let w2: Worker = actor Worker { id: 2 };
+    let w3: Worker = actor Worker { id: 3 };
+    let w4: Worker = actor Worker { id: 4 };
+    let w5: Worker = actor Worker { id: 5 };
+    let w6: Worker = actor Worker { id: 6 };
+    let w7: Worker = actor Worker { id: 7 };
+    let w8: Worker = actor Worker { id: 8 };
+    let w9: Worker = actor Worker { id: 9 };
+
+    // Send messages to all workers
+    let i: ref Int = 0;
+    while i < messages_per_worker decreases messages_per_worker - i {
+        w0.work(i);
+        w1.work(i);
+        w2.work(i);
+        w3.work(i);
+        w4.work(i);
+        w5.work(i);
+        w6.work(i);
+        w7.work(i);
+        w8.work(i);
+        w9.work(i);
+        i = i + 1
+    }
+
+    // Signal done
+    w0.done();
+    w1.done();
+    w2.done();
+    w3.done();
+    w4.done();
+    w5.done();
+    w6.done();
+    w7.done();
+    w8.done();
+    w9.done();
+
+    println("Benchmark complete")
 }

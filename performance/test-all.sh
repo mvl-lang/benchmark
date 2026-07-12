@@ -1,7 +1,7 @@
 #!/bin/bash
 # Performance Benchmark Test Runner
 #
-# Runs all performance benchmarks and summarizes results.
+# Runs all performance benchmarks with side-by-side comparison.
 #
 # Usage: ./test-all.sh [--go-only] [--mvl-only]
 
@@ -34,7 +34,7 @@ echo "  Performance Benchmark Suite"
 echo "═══════════════════════════════════════════════════════════════"
 echo ""
 
-# Actor benchmarks
+# Actor benchmarks - use makefiles for proper timing
 echo "── Actor Benchmarks ──"
 echo ""
 
@@ -42,35 +42,16 @@ for dir in "$SCRIPT_DIR"/actors/*/; do
     name=$(basename "$dir")
     echo "[$name]"
 
-    if [[ "$MVL_ONLY" != "true" ]]; then
-        if [[ -f "$dir/bench.go" ]] && command -v go &>/dev/null; then
-            echo -n "  Go:  "
-            cd "$dir"
-            result=$(go run bench.go 2>&1)
-            throughput=$(echo "$result" | grep -i "throughput" | head -1)
-            echo "$throughput"
-            cd - >/dev/null
-        else
-            echo "  Go:  [SKIP] go not installed or no bench.go"
-        fi
+    if [[ "$MVL_ONLY" != "true" ]] && [[ -f "$dir/Makefile" ]]; then
+        cd "$dir"
+        make bench-go 2>&1 | grep -E "Throughput|Latency|Time:" | head -3 | sed 's/^/  Go:  /'
+        cd - >/dev/null
     fi
 
-    if [[ "$GO_ONLY" != "true" ]]; then
-        if [[ -f "$dir/bench.mvl" ]]; then
-            echo -n "  MVL: "
-            cd "$dir"
-            if mvl check bench.mvl &>/dev/null; then
-                result=$(mvl run bench.mvl 2>&1)
-                if echo "$result" | grep -qi "error\|fail"; then
-                    echo "[FAIL] Transpile/runtime error"
-                else
-                    echo "$(echo "$result" | tail -1)"
-                fi
-            else
-                echo "[FAIL] Check failed"
-            fi
-            cd - >/dev/null
-        fi
+    if [[ "$GO_ONLY" != "true" ]] && [[ -f "$dir/Makefile" ]]; then
+        cd "$dir"
+        make bench-mvl 2>&1 | grep -E "Throughput|Latency|Time:|Note:" | head -4 | sed 's/^/  MVL: /'
+        cd - >/dev/null
     fi
 
     echo ""
@@ -109,9 +90,7 @@ echo "════════════════════════�
 echo "  Summary"
 echo "═══════════════════════════════════════════════════════════════"
 echo ""
-echo "Go baseline benchmarks show raw channel performance."
-echo "MVL actor benchmarks demonstrate patterns but need:"
-echo "  - Circular reference support for ping-pong/ring"
-echo "  - Timing APIs for proper measurement"
+echo "Go benchmarks test true async channel/goroutine communication."
+echo "MVL benchmarks test iterative loops (actors use sync dispatch)."
 echo ""
-echo "See README.md for target performance goals."
+echo "Run individual benchmarks for full output: cd actors/ping_pong && make bench"

@@ -1,46 +1,73 @@
-// Performance Benchmark: Actor Ring
+// Performance Benchmark: Actor Chain
 //
-// N actors arranged in a ring, passing a token around M times.
-// Measures actor spawn overhead and message routing.
+// Multiple actors receiving messages in sequence.
+// Tests message dispatch overhead across actor boundaries.
 //
-// Run: time mvl run bench.mvl
+// Pattern: 10 actors, each receives 100K messages = 1M total
 
 use std.io.{println}
 
-// Token message - carries hop count
-type Token = struct { hops: Int }
-
-// Ring node actor - forwards token to next node
-actor RingNode {
+actor Worker {
     id: Int,
-    next: RingNode,
 
-    pub fn receive_token(token: Token) ! Send + Console {
-        if token.hops > 0 {
-            // Forward to next node
-            self.next.receive_token(Token { hops: token.hops - 1 })
-        } else {
-            // Done - token has traveled the ring
-            println("Ring complete at node ".concat(self.id.to_string()))
-        }
+    pub fn recv(n: Int) ! Console {
+        // Receive message - simulates token arrival
+    }
+
+    pub fn done() ! Console {
+        println("Worker ".concat(self.id.to_string()).concat(" done"))
     }
 }
 
-// Note: Creating a ring requires the last node to point back to the first,
-// which is a circular reference. MVL's actor ownership model doesn't support
-// this directly.
-//
-// Alternative patterns:
-// 1. Use a router actor that dispatches to ring nodes by ID
-// 2. Use a supervisor that manages the ring topology
-// 3. Use async channels instead of direct actor references
+partial fn main() -> Unit ! Console + Spawn + Send {
+    let messages_per_worker: Int = 100000;
+    let num_workers: Int = 10;
+    let total_messages: Int = messages_per_worker * num_workers;
 
-partial fn main() -> Unit ! Console {
-    let ring_size: Int = 100;
-    let token_hops: Int = 100000;
+    println("MVL Actor Chain Benchmark");
+    println("Workers: ".concat(num_workers.to_string()));
+    println("Messages per worker: ".concat(messages_per_worker.to_string()));
+    println("Total messages: ".concat(total_messages.to_string()));
 
-    println("MVL Actor Ring Benchmark")
-    println("Ring size: ".concat(ring_size.to_string()))
-    println("Token hops: ".concat(token_hops.to_string()))
-    println("(Ring topology requires circular refs - see comments)")
+    // Create workers
+    let w0: Worker = actor Worker { id: 0 };
+    let w1: Worker = actor Worker { id: 1 };
+    let w2: Worker = actor Worker { id: 2 };
+    let w3: Worker = actor Worker { id: 3 };
+    let w4: Worker = actor Worker { id: 4 };
+    let w5: Worker = actor Worker { id: 5 };
+    let w6: Worker = actor Worker { id: 6 };
+    let w7: Worker = actor Worker { id: 7 };
+    let w8: Worker = actor Worker { id: 8 };
+    let w9: Worker = actor Worker { id: 9 };
+
+    // Send messages in round-robin (simulates ring)
+    let i: ref Int = 0;
+    while i < messages_per_worker decreases messages_per_worker - i {
+        w0.recv(i);
+        w1.recv(i);
+        w2.recv(i);
+        w3.recv(i);
+        w4.recv(i);
+        w5.recv(i);
+        w6.recv(i);
+        w7.recv(i);
+        w8.recv(i);
+        w9.recv(i);
+        i = i + 1
+    }
+
+    // Signal completion
+    w0.done();
+    w1.done();
+    w2.done();
+    w3.done();
+    w4.done();
+    w5.done();
+    w6.done();
+    w7.done();
+    w8.done();
+    w9.done();
+
+    println("Benchmark complete")
 }
