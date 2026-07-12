@@ -39,7 +39,40 @@ total fn required_permission(method: HttpMethod) -> Permission {
     }
 }
 
+// ── Pattern 2: Wildcard / catch-all ──────────────────────────────────────
+//
+// A wildcard `_` arm also satisfies REQ-3, but is a security anti-pattern
+// for ACL dispatch: when a new HttpMethod variant is added later, it silently
+// falls to the default instead of producing a compile error that forces you
+// to make an explicit decision. Prefer explicit arms for security boundaries.
+total fn permission_with_default(method: HttpMethod) -> Permission {
+    match method {
+        HttpMethod::Get  => Permission::ReadOnly,
+        HttpMethod::Post => Permission::ReadWrite,
+        _                => Permission::Denied,   // catches Put, Delete, Patch — and any future variant
+    }
+}
+
+// ── Pattern 3: Explicit no-op arm ────────────────────────────────────────
+//
+// Sometimes a variant is intentionally a no-op — you handled it by deciding
+// to do nothing. This is different from forgetting it: the arm is present,
+// the decision is visible in the code, and a future variant addition will
+// still produce a compile error forcing a new explicit decision.
+fn audit_mutating_methods(method: HttpMethod) -> Unit ! Console {
+    match method {
+        HttpMethod::Post   => println("audit: POST"),
+        HttpMethod::Put    => println("audit: PUT"),
+        HttpMethod::Delete => println("audit: DELETE"),
+        HttpMethod::Patch  => println("audit: PATCH"),
+        HttpMethod::Get    => {},   // no-op: read-only, nothing to audit
+    }
+}
+
 fn main() -> Unit ! Console {
+    let _: Permission = permission_with_default(HttpMethod::Patch);
+    audit_mutating_methods(HttpMethod::Get);
+    audit_mutating_methods(HttpMethod::Post);
     let perm: Permission = required_permission(HttpMethod::Delete);
     match perm {
         Permission::ReadOnly  => println("read only"),
