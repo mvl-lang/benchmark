@@ -20,16 +20,14 @@
 // Real-world impact: the HTTP/2 Rapid Reset attack created unbounded server
 // work by flooding HEADERS+RST_STREAM frames. A total rate-limiter on the
 // ingress path is proven to finish regardless of what the attacker sends.
-
 // ── Pattern 1: total fn with `for` — bounded by construction ─────────────
 //
 // `for` iterates a finite collection. The compiler knows it terminates
 // without any extra annotation. This is the default choice for total fns.
-
 total fn count_requests(items: List[Int]) -> Int {
     let n: ref Int = 0;
     for _item in items {
-        n = n + 1
+        n = n + 1;
     }
     n
 }
@@ -37,7 +35,7 @@ total fn count_requests(items: List[Int]) -> Int {
 total fn sum_bytes(lengths: List[Int]) -> Int {
     let acc: ref Int = 0;
     for len in lengths {
-        acc = acc + len
+        acc = acc + len;
     }
     acc
 }
@@ -49,10 +47,12 @@ total fn sum_bytes(lengths: List[Int]) -> Int {
 // variant: an expression that strictly decreases each iteration and is
 // bounded below (≥ 0). The compiler verifies this holds; if it cannot, the
 // function must be declared `partial` instead.
-
-total fn find_request(items: List[Int], target: Int) -> Bool {
+total fn find_request(
+    items: List[Int],
+    target: Int,
+) -> Bool {
     let i: ref Int = 0;
-    while i < items.len() decreases items.len() - i {
+    while i < items.len()  decreases items.len() - i {
         if let Some(v) = items.get(i) {
             if v == target {
                 return true;
@@ -68,7 +68,6 @@ total fn find_request(items: List[Int], target: Int) -> Bool {
 // A server accept loop runs until the listener is closed — there is no
 // finite bound on the number of iterations. This is a legitimate partial
 // function. It cannot be called from a total fn (compile error).
-
 partial fn accept_loop(limit: Int) -> Unit ! Console {
     let received: ref Int = 0;
     while true {
@@ -91,38 +90,41 @@ partial fn accept_loop(limit: Int) -> Unit ! Console {
 // A long-running server uses `partial fn main()`, which signals the program
 // itself may not terminate and unlocks calling partial functions from the
 // entry point. The annotation propagates honestly up to the program boundary.
-
-total fn rate_limit_check(sizes: List[Int], budget: Int) -> Bool {
-    let used: Int = sum_bytes(sizes);   // total calling total — fine
+total fn rate_limit_check(
+    sizes: List[Int],
+    budget: Int,
+) -> Bool {
+    let used: Int = sum_bytes(sizes);
     used <= budget
 }
 
-partial fn server_tick(sizes: List[Int], budget: Int) -> Unit ! Console {
-    let ok: Bool = rate_limit_check(sizes, budget);  // partial calling total — fine
-    // accept_loop(10);  // would also be fine here — partial calling partial
+partial fn server_tick(
+    sizes: List[Int],
+    budget: Int,
+) -> Unit ! Console {
+    let ok: Bool = rate_limit_check(sizes, budget);
     match ok {
-        true  => println("within budget"),
+        true => println("within budget"),
         false => println("budget exceeded"),
     }
 }
 
+// accept_loop(10);  // would also be fine here — partial calling partial
 // total fn broken(sizes: List[Int]) -> Unit ! Console {
 //     accept_loop(10)   // COMPILE ERROR: PartialCallInTotal (REQ-8)
 // }
-
 // Short-lived program: fn main() is implicitly total-checked.
 // Calling server_tick (partial) here would be a compile error.
 fn main() -> Unit ! Console {
     let sizes: List[Int] = [100, 200, 300, 150, 75];
-    let _: Int  = count_requests(sizes);
+    let _: Int = count_requests(sizes);
     let _: Bool = find_request(sizes, 200);
     let ok: Bool = rate_limit_check(sizes, 1000);
     match ok {
-        true  => println("within budget"),
+        true => println("within budget"),
         false => println("budget exceeded"),
     }
 }
-
 // Long-running server: partial fn main() signals the program may not
 // terminate and allows calling partial functions freely.
 // partial fn main() -> Unit ! Console {
