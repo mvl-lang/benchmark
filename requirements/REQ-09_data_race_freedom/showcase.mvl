@@ -1,0 +1,52 @@
+// REQ-9: Data Race Freedom
+// CVE-2025-68260 Rust Binder / CWE-362: Race Condition
+//
+// Functions with only `iso` or `val` parameters (no `ref`) are proven
+// data-race-free. `val` parameters are immutable and freely shareable;
+// `iso` parameters are uniquely owned. Neither can create aliased mutable
+// state — concurrent calls cannot corrupt shared data structures.
+//
+// Real-world impact: the Rust Binder CVE was a race on a shared linked list
+// accessed concurrently without adequate synchronisation. `val` parameters
+// give each caller an immutable snapshot — no shared mutable state to race on.
+
+type DeathEntry = struct {
+    process_id: Int,
+    callback_id: Int,
+}
+
+type Notification = struct {
+    message: String,
+    pid: Int,
+}
+
+type Connection = struct {
+    host: String,
+    port: Int,
+}
+
+// val: immutable, freely shareable — safe for concurrent callers
+total fn entry_matches(val entry: DeathEntry, target_pid: Int) -> Bool {
+    entry.process_id == target_pid
+}
+
+// val: notification can be read concurrently without races
+total fn is_relevant(val notif: Notification, pid: Int) -> Bool {
+    notif.pid == pid
+}
+
+// iso: uniquely owned — transferred via consume(), no aliasing possible
+fn handle_connection(iso conn: Connection) -> Unit ! Console {
+    let _: Connection = consume(conn);
+    println("connection handled")
+}
+
+fn main() -> Unit ! Console {
+    let entry: DeathEntry = DeathEntry { process_id: 100, callback_id: 1 };
+    let notif: Notification = Notification { message: "process exited", pid: 100 };
+    let conn: Connection = Connection { host: "db.local", port: 5432 };
+
+    let _: Bool = entry_matches(entry, 100);
+    let _: Bool = is_relevant(notif, 100);
+    handle_connection(conn)
+}

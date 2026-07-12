@@ -1,0 +1,44 @@
+// REQ-3: Totality — Exhaustive Match
+// CWE-253: Incorrect Check of Function Return Value / OWASP A04 Insecure Design
+//
+// Total functions must handle every enum variant — a missing arm is a compile
+// error (NonExhaustiveMatch). Security-critical dispatch (ACL, HTTP method
+// routing, error codes) cannot silently fall through an unhandled case.
+//
+// Real-world impact: adding a new HTTP method or permission level to an enum
+// without updating dispatch logic can silently grant unintended access.
+// MVL forces every case to be handled at compile time.
+
+type HttpMethod = enum {
+    Get,
+    Post,
+    Put,
+    Delete,
+    Patch,
+}
+
+type Permission = enum {
+    ReadOnly,
+    ReadWrite,
+    Denied,
+}
+
+total fn required_permission(method: HttpMethod) -> Permission {
+    match method {
+        HttpMethod::Get    => Permission::ReadOnly,
+        HttpMethod::Post   => Permission::ReadWrite,
+        HttpMethod::Put    => Permission::ReadWrite,
+        HttpMethod::Delete => Permission::ReadWrite,
+        HttpMethod::Patch  => Permission::ReadWrite,
+        // Non-exhaustive match (missing Patch) would be a compile error (REQ-3)
+    }
+}
+
+fn main() -> Unit ! Console {
+    let perm: Permission = required_permission(HttpMethod::Delete);
+    match perm {
+        Permission::ReadOnly  => println("read only"),
+        Permission::ReadWrite => println("read write"),
+        Permission::Denied    => println("denied"),
+    }
+}

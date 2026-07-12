@@ -1,0 +1,49 @@
+// REQ-11: Information Flow Control (IFC)
+// CWE-200: Exposure of Sensitive Information / OWASP A02: Cryptographic Failures
+//
+// Tainted[T] and Secret[T] track data provenance through the type system.
+// A Tainted value controlling a public Console output is a compile error
+// (ImplicitFlowViolation). A Secret value cannot flow to a public sink
+// without an explicit relabel — accidental credential logging is prevented
+// by construction, not discipline.
+//
+// Real-world impact: logging frameworks that include request parameters have
+// accidentally emitted passwords, API keys, and session tokens in plaintext.
+// IFC labels make that path a type error.
+
+use std.io.{println}
+
+// ── Secret: confidential data that must be declassified explicitly ────────
+
+type Credential = struct {
+    username: String,
+    // api_key is Secret — it cannot flow to println or any public sink
+}
+
+fn store_credential(username: String, raw_key: String) -> Credential {
+    // Wrap the key as Secret — from here it cannot reach any public output
+    let _api_key: Secret[String] = relabel classify(raw_key, "API-KEY-001");
+    // println(_api_key);  // COMPILE ERROR: ImplicitFlowViolation (REQ-11)
+    Credential { username: username }
+}
+
+// ── Tainted: untrusted input that must be explicitly validated ────────────
+
+// Tainted[String] cannot reach public sinks without relabel trust()
+fn sanitize(raw: Tainted[String]) -> String {
+    relabel trust(raw, "SANITIZE-AUDIT-001")
+}
+
+fn handle_request(input: Tainted[String]) -> Unit ! Console {
+    // Cannot pass Tainted[String] where String is expected without relabel
+    let clean: String = sanitize(input);
+    println(clean)
+}
+
+// ── Test: verify function signatures type-check ───────────────────────────
+
+test fn ifc_typecheck() -> Unit {
+    let _: fn(String, String) -> Credential = store_credential;
+    let _: fn(Tainted[String]) -> String = sanitize;
+    let _: fn(Tainted[String]) -> Unit ! Console = handle_request;
+}

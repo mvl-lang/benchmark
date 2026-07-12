@@ -6,7 +6,7 @@
 #   make test-all      Run all benchmark suites
 #   make report        Generate metrics report
 
-.PHONY: all test-cve test-cve-compare test-cwe test-rosetta test-llm test-perf test-all report clean help
+.PHONY: all test-cve test-cve-compare test-cwe test-requirements test-rosetta test-llm test-perf test-all report clean help
 
 all: help
 
@@ -17,6 +17,7 @@ help:
 	@echo "  make test-cve          Run CVE replication tests (MVL only)"
 	@echo "  make test-cve-compare  Run CVE tests with vulnerable versions"
 	@echo "  make test-cve-explain  Run CVE tests with explanations"
+	@echo "  make test-requirements Run all 11 MVL requirements showcase"
 	@echo "  make test-cwe          Run CWE/OWASP comparative matrix"
 	@echo "  make test-rosetta      Run Rosetta translation tests"
 	@echo "  make test-llm          Run adversarial LLM tests"
@@ -43,6 +44,13 @@ test-cve-explain:
 	@echo "  Running CVE Replication Tests (with explanations)"
 	@echo "═══════════════════════════════════════════════════════════════"
 	cd cve_replication && ./run_tests.sh --explain
+
+# Requirements Showcase
+test-requirements:
+	@echo "═══════════════════════════════════════════════════════════════"
+	@echo "  MVL Requirements Showcase (all 11 requirements)"
+	@echo "═══════════════════════════════════════════════════════════════"
+	requirements/run_tests.sh
 
 # CWE Comparative Matrix
 test-cwe:
@@ -136,7 +144,7 @@ test-perf:
 	@echo "  cd performance/actors/ring && make bench"
 
 # Run all tests
-test-all: test-cve test-cwe test-rosetta test-llm test-perf
+test-all: test-cve test-requirements test-cwe test-rosetta test-llm test-perf
 
 # Generate report
 report:

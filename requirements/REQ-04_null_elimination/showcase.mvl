@@ -1,0 +1,44 @@
+// REQ-4: Null Elimination
+// CWE-476: NULL Pointer Dereference
+//
+// Option[T] replaces null. Accessing a field on Option[T] without a prior
+// match is a compile error (OptionDirectAccess). There is no null pointer
+// that can segfault, no .unwrap() that can panic — the None case must be
+// handled before the inner value is reachable.
+//
+// Real-world impact: null dereferences are #12 in the CWE Top 25 (2023)
+// and a consistent source of crashes and exploitable conditions.
+
+type Session = struct {
+    user_id: Int,
+    token: String,
+    expires_at: Int,
+}
+
+total fn lookup_session(token: String) -> Option[Session] {
+    if token.len() > 0 {
+        Some(Session { user_id: 1, token: token, expires_at: 9999999 })
+    } else {
+        None
+    }
+}
+
+fn authenticate(token: String) -> Bool ! Console {
+    match lookup_session(token) {
+        Some(session) => {
+            // session fields are only accessible inside the Some arm
+            // lookup_session(token).user_id  // COMPILE ERROR: OptionDirectAccess (REQ-4)
+            let _: Int = session.user_id;
+            true
+        },
+        None => {
+            println("no session found");
+            false
+        },
+    }
+}
+
+fn main() -> Unit ! Console {
+    let _: Bool = authenticate("tok-abc123");
+    let _: Bool = authenticate("");
+}

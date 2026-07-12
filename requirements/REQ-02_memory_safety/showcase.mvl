@@ -1,0 +1,30 @@
+// REQ-2: Memory Safety
+// CVE-2014-0160 Heartbleed / CWE-416: Use After Free
+//
+// consume() transfers ownership destructively — the original binding is
+// invalidated and any subsequent read is a compile error (UseAfterMove).
+// Heartbleed exploited a read of already-freed memory in OpenSSL.
+// MVL's linear types make that pattern unrepresentable: once a value is
+// consumed, the name is gone from scope.
+
+type TlsRecord = struct {
+    payload: String,
+    claimed_len: Int,
+}
+
+fn process_record(rec: TlsRecord) -> Int {
+    // Transfer ownership into this function; `rec` is consumed here
+    let owned: TlsRecord = consume(rec);
+    owned.claimed_len
+}
+
+fn handle_heartbeat(record: TlsRecord) -> Unit ! Console {
+    let _: Int = process_record(consume(record));
+    // println("{}", record.payload);  // COMPILE ERROR: UseAfterMove (REQ-2)
+    println("record processed — no double-read possible")
+}
+
+fn main() -> Unit ! Console {
+    let rec: TlsRecord = TlsRecord { payload: "ping", claimed_len: 4 };
+    handle_heartbeat(rec)
+}
