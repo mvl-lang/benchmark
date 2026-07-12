@@ -8,6 +8,12 @@
 
 .PHONY: all test-cve test-cve-compare test-cwe test-requirements test-rosetta test-llm test-perf test-all report clean help
 
+# ANSI colors (used via printf in recipes; use $$'\033' if invoking as raw shell)
+GREEN := \033[0;32m
+RED   := \033[0;31m
+DIM   := \033[2m
+NC    := \033[0m
+
 all: help
 
 help:
@@ -58,24 +64,31 @@ test-cwe:
 	@echo "  CWE / OWASP Comparative Matrix"
 	@echo "═══════════════════════════════════════════════════════════════"
 	@echo ""
-	@for dir in cwe_comparative/CWE-*/ cwe_comparative/OWASP-*/; do \
+	@pass=0; fail=0; \
+	for dir in cwe_comparative/CWE-*/ cwe_comparative/OWASP-*/; do \
 		if [ -d "$$dir" ]; then \
 			name=$$(basename "$$dir"); \
 			mvl_file="$$dir/attempt.mvl"; \
 			if [ -f "$$mvl_file" ]; then \
 				result=$$(mvl check "$$mvl_file" 2>&1); \
 				if echo "$$result" | grep -q "OK"; then \
-					echo "  ✅ $$name"; \
+					printf "  $(GREEN)✓$(NC)  %s\n" "$$name"; \
+					pass=$$((pass + 1)); \
 				else \
-					echo "  ❌ $$name (compile error)"; \
+					printf "  $(RED)✗$(NC)  %s $(DIM)(compile error)$(NC)\n" "$$name"; \
+					fail=$$((fail + 1)); \
 				fi; \
 			else \
-				echo "  ⚠️  $$name (no attempt.mvl)"; \
+				printf "  $(DIM)⚠  %s (no attempt.mvl)$(NC)\n" "$$name"; \
 			fi; \
 		fi; \
-	done
-	@echo ""
-	@echo "  Cases: $$(ls -d cwe_comparative/CWE-*/ cwe_comparative/OWASP-*/ 2>/dev/null | wc -l | tr -d ' ')"
+	done; \
+	echo ""; \
+	if [ $$fail -eq 0 ]; then \
+		printf "  $(GREEN)✓  All $$pass cases passed$(NC)\n"; \
+	else \
+		printf "  $(RED)✗  $$fail of $$((pass + fail)) cases failed$(NC)\n"; \
+	fi
 
 # Rosetta Translation
 test-rosetta:
@@ -83,19 +96,26 @@ test-rosetta:
 	@echo "  Rosetta Translation Tests"
 	@echo "═══════════════════════════════════════════════════════════════"
 	@echo ""
-	@for f in rosetta/*.mvl; do \
+	@pass=0; fail=0; \
+	for f in rosetta/*.mvl; do \
 		if [ -f "$$f" ]; then \
 			name=$$(basename "$$f" .mvl); \
 			result=$$(mvl check "$$f" 2>&1); \
 			if echo "$$result" | grep -q "OK"; then \
-				echo "  ✅ $$name"; \
+				printf "  $(GREEN)✓$(NC)  %s\n" "$$name"; \
+				pass=$$((pass + 1)); \
 			else \
-				echo "  ❌ $$name"; \
+				printf "  $(RED)✗$(NC)  %s\n" "$$name"; \
+				fail=$$((fail + 1)); \
 			fi; \
 		fi; \
-	done
-	@echo ""
-	@echo "  Tasks: $$(ls rosetta/*.mvl 2>/dev/null | wc -l | tr -d ' ')"
+	done; \
+	echo ""; \
+	if [ $$fail -eq 0 ]; then \
+		printf "  $(GREEN)✓  All $$pass tasks passed$(NC)\n"; \
+	else \
+		printf "  $(RED)✗  $$fail of $$((pass + fail)) tasks failed$(NC)\n"; \
+	fi
 
 # Adversarial LLM
 test-llm:
@@ -103,45 +123,57 @@ test-llm:
 	@echo "  Adversarial LLM Tests"
 	@echo "═══════════════════════════════════════════════════════════════"
 	@echo ""
-	@for f in adversarial_llm/*.mvl; do \
+	@pass=0; fail=0; \
+	for f in adversarial_llm/*.mvl; do \
 		if [ -f "$$f" ]; then \
 			name=$$(basename "$$f" .mvl); \
 			result=$$(mvl check "$$f" 2>&1); \
 			if echo "$$result" | grep -q "OK"; then \
-				echo "  ✅ $$name"; \
+				printf "  $(GREEN)✓$(NC)  %s\n" "$$name"; \
+				pass=$$((pass + 1)); \
 			else \
-				echo "  ❌ $$name"; \
+				printf "  $(RED)✗$(NC)  %s\n" "$$name"; \
+				fail=$$((fail + 1)); \
 			fi; \
 		fi; \
-	done
-	@echo ""
-	@echo "  Programs: $$(ls adversarial_llm/*.mvl 2>/dev/null | wc -l | tr -d ' ')"
+	done; \
+	echo ""; \
+	if [ $$fail -eq 0 ]; then \
+		printf "  $(GREEN)✓  All $$pass programs passed$(NC)\n"; \
+	else \
+		printf "  $(RED)✗  $$fail of $$((pass + fail)) programs failed$(NC)\n"; \
+	fi
 
 # Performance benchmarks
 test-perf:
 	@echo "═══════════════════════════════════════════════════════════════"
 	@echo "  Performance Benchmarks"
 	@echo "═══════════════════════════════════════════════════════════════"
-	@echo ""
-	@echo "Actors:"
-	@for dir in performance/actors/*/; do \
-		if [ -d "$$dir" ]; then \
+	@pass=0; fail=0; \
+	for group in actors strings; do \
+		printf "\n$(DIM)── %s ──$(NC)\n" "$$group"; \
+		for dir in performance/$$group/*/; do \
+			[ -d "$$dir" ] || continue; \
 			name=$$(basename "$$dir"); \
-			echo "  - $$name"; \
-		fi; \
-	done
-	@echo ""
-	@echo "Strings:"
-	@for dir in performance/strings/*/; do \
-		if [ -d "$$dir" ]; then \
-			name=$$(basename "$$dir"); \
-			echo "  - $$name"; \
-		fi; \
-	done
-	@echo ""
-	@echo "Run individual benchmarks:"
-	@echo "  cd performance/actors/ping_pong && make bench"
-	@echo "  cd performance/actors/ring && make bench"
+			tmp=$$(mktemp); \
+			if $(MAKE) --no-print-directory -C "$$dir" bench > "$$tmp" 2>&1; then \
+				grep -Ei '(bench|ns/op|ms|ops/sec|elapsed|time|iterations)' "$$tmp" | head -6 | sed 's/^/       /'; \
+				printf "  $(GREEN)✓$(NC)  %s\n" "$$name"; \
+				pass=$$((pass + 1)); \
+			else \
+				sed 's/^/       /' "$$tmp"; \
+				printf "  $(RED)✗$(NC)  %s\n" "$$name"; \
+				fail=$$((fail + 1)); \
+			fi; \
+			rm -f "$$tmp"; \
+		done; \
+	done; \
+	echo ""; \
+	if [ $$fail -eq 0 ]; then \
+		printf "  $(GREEN)✓  All $$pass benchmarks passed$(NC)\n"; \
+	else \
+		printf "  $(RED)✗  $$fail of $$((pass + fail)) benchmarks failed$(NC)\n"; \
+	fi
 
 # Run all tests
 test-all: test-cve test-requirements test-cwe test-rosetta test-llm test-perf
